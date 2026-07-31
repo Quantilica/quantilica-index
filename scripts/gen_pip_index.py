@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gera índice estático de pacotes Python PEP 503/658 a partir dos Releases do GitHub da organização Quantilica."""
+"""Gera índice estático de pacotes Python PEP 503/658 a partir do GitHub Releases."""
 
 from __future__ import annotations
 
@@ -73,7 +73,12 @@ def generate_index():
                 name = asset.get("name", "")
                 download_url = asset.get("browser_download_url", "")
 
-                if name.endswith(".whl") or name.endswith(".tar.gz") or name.endswith(".zip"):
+                is_pkg = (
+                    name.endswith(".whl")
+                    or name.endswith(".tar.gz")
+                    or name.endswith(".zip")
+                )
+                if is_pkg:
                     links.append(f'    <a href="{download_url}">{name}</a><br/>')
 
         html_content = f"""<!DOCTYPE html>
@@ -89,7 +94,9 @@ def generate_index():
 """
         (pkg_dir / "index.html").write_text(html_content, encoding="utf-8")
 
-    root_links = [f'    <a href="{pkg}/">{pkg}</a><br/>' for pkg in sorted(packages_found)]
+    root_links = [
+        f'    <a href="{pkg}/">{pkg}</a><br/>' for pkg in sorted(packages_found)
+    ]
     root_html = f"""<!DOCTYPE html>
 <html>
   <head>
