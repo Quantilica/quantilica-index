@@ -3,6 +3,8 @@
   "comex": "comex-fetcher",
   "datasus": "datasus-fetcher",
   "inmet": "inmet-fetcher",
+  "pdet": "pdet-fetcher",
   "rtn": "rtn-fetcher",
+  "tesouro-direto": "tesouro-direto-fetcher",
   "quantilica-analytics": "quantilica-analytics"
 }
