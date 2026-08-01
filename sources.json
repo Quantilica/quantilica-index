@@ -1,4 +1,6 @@
 {
+  "anac": "anac-fetcher",
+  "anp": "anp-fetcher",
   "bcb-sgs": "bcb-sgs-fetcher",
   "comex": "comex-fetcher",
   "datasus": "datasus-fetcher",
