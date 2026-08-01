@@ -2,6 +2,7 @@
   "bcb-sgs": "bcb-sgs-fetcher",
   "comex": "comex-fetcher",
   "datasus": "datasus-fetcher",
+  "inmet": "inmet-fetcher",
   "rtn": "rtn-fetcher",
   "quantilica-analytics": "quantilica-analytics"
 }
