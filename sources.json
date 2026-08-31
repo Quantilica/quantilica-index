@@ -6,6 +6,7 @@
   "datasus": "datasus-fetcher",
   "inmet": "inmet-fetcher",
   "pdet": "pdet-fetcher",
+  "rfb-cnpj": "rfb-cnpj-fetcher",
   "rtn": "rtn-fetcher",
   "tesouro-direto": "tesouro-direto-fetcher",
   "quantilica-analytics": "quantilica-analytics"
