@@ -22,6 +22,7 @@ FETCHERS = [
     "inep-fetcher",
     "inmet-fetcher",
     "pdet-fetcher",
+    "rfb-cnpj-fetcher",
     "rtn-fetcher",
     "sidra-fetcher",
     "tesouro-direto-fetcher",
