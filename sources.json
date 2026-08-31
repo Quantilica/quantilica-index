@@ -4,10 +4,12 @@
   "bcb-sgs": "bcb-sgs-fetcher",
   "comex": "comex-fetcher",
   "datasus": "datasus-fetcher",
+  "inep": "inep-fetcher",
   "inmet": "inmet-fetcher",
   "pdet": "pdet-fetcher",
   "rfb-cnpj": "rfb-cnpj-fetcher",
   "rtn": "rtn-fetcher",
   "tesouro-direto": "tesouro-direto-fetcher",
-  "quantilica-analytics": "quantilica-analytics"
+  "quantilica-analytics": "quantilica-analytics",
+  "quantilica-catalog": "quantilica-catalog"
 }
