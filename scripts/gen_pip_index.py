@@ -18,6 +18,7 @@ FETCHERS = [
     "anp-fetcher",
     "bcb-sgs-fetcher",
     "comex-fetcher",
+    "cvm-fetcher",
     "datasus-fetcher",
     "inep-fetcher",
     "inmet-fetcher",
