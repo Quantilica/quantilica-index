@@ -11,6 +11,7 @@
   "rfb-cnpj": "rfb-cnpj-fetcher",
   "rtn": "rtn-fetcher",
   "tesouro-direto": "tesouro-direto-fetcher",
+  "tse": "tse-fetcher",
   "quantilica-analytics": "quantilica-analytics",
   "quantilica-catalog": "quantilica-catalog"
 }
