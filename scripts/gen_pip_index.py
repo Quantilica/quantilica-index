@@ -27,6 +27,7 @@ FETCHERS = [
     "rtn-fetcher",
     "sidra-fetcher",
     "tesouro-direto-fetcher",
+    "tse-fetcher",
     "quantilica-analytics",
     "quantilica-catalog",
 ]
