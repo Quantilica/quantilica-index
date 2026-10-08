@@ -2,6 +2,7 @@
   "anac": "anac-fetcher",
   "anp": "anp-fetcher",
   "bcb-sgs": "bcb-sgs-fetcher",
+  "bcb-sgs-sql": "bcb-sgs-sql",
   "comex": "comex-fetcher",
   "cvm": "cvm-fetcher",
   "datasus": "datasus-fetcher",
