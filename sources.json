@@ -11,6 +11,7 @@
   "rfb-cnpj": "rfb-cnpj-fetcher",
   "rtn": "rtn-fetcher",
   "sidra": "sidra-fetcher",
+  "sidra-sql": "sidra-sql",
   "tesouro-direto": "tesouro-direto-fetcher",
   "tse": "tse-fetcher",
   "quantilica-analytics": "quantilica-analytics",
