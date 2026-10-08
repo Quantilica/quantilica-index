@@ -10,6 +10,7 @@
   "pdet": "pdet-fetcher",
   "rfb-cnpj": "rfb-cnpj-fetcher",
   "rtn": "rtn-fetcher",
+  "sidra": "sidra-fetcher",
   "tesouro-direto": "tesouro-direto-fetcher",
   "tse": "tse-fetcher",
   "quantilica-analytics": "quantilica-analytics",
