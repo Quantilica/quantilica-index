@@ -26,8 +26,31 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/gen_pip_index.py
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
+      # Releases simultâneos disparam este workflow ao mesmo tempo e o push no
+      # gh-pages perde a corrida de ref ("cannot lock ref ... is at <x> but
+      # expected <y>"). Cada tentativa re-busa o gh-pages remoto e força o push
+      # de novo até o deploy entrar (ou esgotar as tentativas).
+      - name: Deploy to GitHub Pages (com retry)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          cd public
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          touch .nojekyll
+          git add -A
+          git commit -q -m "deploy: ${GITHUB_SHA}"
+          for attempt in 1 2 3 4 5; do
+            git fetch -q "${remote}" gh-pages:refs/remotes/origin/gh-pages || true
+            if git push -q --force "${remote}" gh-pages; then
+              echo "deploy publicado no gh-pages (tentativa ${attempt})"
+              exit 0
+            fi
+            echo "push do gh-pages rejeitado (tentativa ${attempt}); re-tentando em $((attempt * 5))s"
+            sleep $((attempt * 5))
+          done
+          echo "::error::push do gh-pages falhou após 5 tentativas"
+          exit 1
