@@ -16,6 +16,7 @@ SIMPLE_DIR = PUBLIC_DIR / "simple"
 FETCHERS = [
     "anac-fetcher",
     "anp-fetcher",
+    "b3-fetcher",
     "bcb-sgs-fetcher",
     "bcb-sgs-sql",
     "comex-fetcher",
