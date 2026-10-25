@@ -33,6 +33,7 @@ FETCHERS = [
     "tse-fetcher",
     "quantilica-analytics",
     "quantilica-catalog",
+    "quantilica-sql",
 ]
 
 
