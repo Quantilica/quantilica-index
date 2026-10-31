@@ -1,0 +1,22 @@
+{
+  "anac": "anac-fetcher",
+  "anp": "anp-fetcher",
+  "b3": "b3-fetcher",
+  "bcb-sgs": "bcb-sgs-fetcher",
+  "bcb-sgs-sql": "bcb-sgs-sql",
+  "comex": "comex-fetcher",
+  "cvm": "cvm-fetcher",
+  "datasus": "datasus-fetcher",
+  "inep": "inep-fetcher",
+  "inmet": "inmet-fetcher",
+  "pdet": "pdet-fetcher",
+  "rfb-cnpj": "rfb-cnpj-fetcher",
+  "rtn": "rtn-fetcher",
+  "sidra": "sidra-fetcher",
+  "sidra-sql": "sidra-sql",
+  "tesouro-direto": "tesouro-direto-fetcher",
+  "tse": "tse-fetcher",
+  "quantilica-analytics": "quantilica-analytics",
+  "quantilica-catalog": "quantilica-catalog",
+  "quantilica-sql": "quantilica-sql"
+}
