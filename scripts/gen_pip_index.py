@@ -12,7 +12,10 @@ ORG_NAME = "Quantilica"
 PUBLIC_DIR = Path("public")
 SIMPLE_DIR = PUBLIC_DIR / "simple"
 
-# Mapeamento de repositórios conhecidos da organização
+# Mapeamento de repositórios conhecidos da organização.
+# `bcb-sgs-sql` e `sidra-sql` estão depreciados (substituídos por `quantilica-sql`),
+# mas continuam aqui: o índice é montado a partir das releases de cada repositório,
+# e tirá-los da lista apagaria do índice as versões já publicadas.
 FETCHERS = [
     "anac-fetcher",
     "anp-fetcher",
