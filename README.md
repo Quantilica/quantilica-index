@@ -6,3 +6,4 @@ Este repositório é acionado automaticamente a cada nova release publicada nos 
 
 - **URL Base PEP 503:** `https://index.quantilica.com/simple/`
 - **Mapeamento de Fontes:** `https://index.quantilica.com/sources.json`
+- **Registro de fetchers:** `https://index.quantilica.com/registry.json` (id, nome, apelidos, órgão, licença, frequência e domínio de cada coletor). É a cópia de `registry.json` deste repositório, gerada no workspace com `python3 infra/registry_build.py --public registry.json`.

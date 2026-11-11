@@ -10,6 +10,9 @@ from pathlib import Path
 
 ORG_NAME = "Quantilica"
 PUBLIC_DIR = Path("public")
+# Registro de fetchers: cópia da versão pública gerada no workspace por
+# `python3 infra/registry_build.py --public registry.json` (sem dados de operação).
+REGISTRY_FILE = Path("registry.json")
 SIMPLE_DIR = PUBLIC_DIR / "simple"
 
 # Mapeamento de repositórios conhecidos da organização.
@@ -134,7 +137,22 @@ def generate_index():
         json.dumps(sources_map, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    publish_registry()
     print(f"Índice gerado com sucesso para {len(packages_found)} pacotes.")
+
+
+def publish_registry() -> None:
+    """Copia `registry.json` (registro de fetchers) para o site, se existir."""
+    if not REGISTRY_FILE.is_file():
+        print("registry.json ausente; o registro de fetchers não foi publicado.")
+        return
+    # Falha cedo se a cópia versionada não for JSON válido.
+    data = json.loads(REGISTRY_FILE.read_text(encoding="utf-8"))
+    PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
+    (PUBLIC_DIR / "registry.json").write_text(
+        REGISTRY_FILE.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    print(f"Registro publicado com {len(data.get('fetchers', []))} fetchers.")
 
 
 if __name__ == "__main__":

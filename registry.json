@@ -1,0 +1,346 @@
+{
+  "version": 1,
+  "fetchers": [
+    {
+      "id": "anac",
+      "nome": "ANAC - Dados Abertos",
+      "aliases": [],
+      "orgao": "Agência Nacional de Aviação Civil (ANAC)",
+      "licenca": null,
+      "homepage": "https://www.gov.br/anac/",
+      "cadencia": "daily",
+      "dominio": "transporte",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "anac"
+    },
+    {
+      "id": "anp",
+      "nome": "ANP - Dados Estatísticos e Dados Abertos",
+      "aliases": [],
+      "orgao": "Agência Nacional do Petróleo, Gás Natural e Biocombustíveis (ANP)",
+      "licenca": null,
+      "homepage": "https://www.gov.br/anp/",
+      "cadencia": "monthly",
+      "dominio": "energia",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "anp"
+    },
+    {
+      "id": "antt",
+      "nome": "ANTT - Dados Abertos",
+      "aliases": [],
+      "orgao": "Agência Nacional de Transportes Terrestres (ANTT)",
+      "licenca": "Creative Commons Atribuição (CC BY)",
+      "homepage": "https://dados.antt.gov.br",
+      "cadencia": "monthly",
+      "dominio": "transporte",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "antt"
+    },
+    {
+      "id": "b3",
+      "nome": "B3 - Cotações Históricas e Índices",
+      "aliases": [],
+      "orgao": "B3 S.A. - Brasil, Bolsa, Balcão (B3)",
+      "licenca": null,
+      "homepage": "https://www.b3.com.br/pt_br/market-data-e-indices/servicos-de-dados/market-data/historico/mercado-a-vista/cotacoes-historicas/",
+      "cadencia": "daily",
+      "dominio": "financas",
+      "redistribuicao": "restrita",
+      "restricao_nota": "Termos de uso da B3 vedam coleta automatizada; sem licença aberta. Uso interno.",
+      "entry_point": "b3"
+    },
+    {
+      "id": "bcb-microdados",
+      "nome": "Banco Central - Microdados (SCR, ESTBAN, COSIF, Pix)",
+      "aliases": [
+        "bcb_microdados"
+      ],
+      "orgao": "Banco Central do Brasil (BCB)",
+      "licenca": "Open Data Commons Open Database License (ODbL)",
+      "homepage": "https://dadosabertos.bcb.gov.br/",
+      "cadencia": "monthly",
+      "dominio": "financas",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "bcb-microdados"
+    },
+    {
+      "id": "bcb-sgs",
+      "nome": "BCB - Sistema Gerenciador de Séries Temporais (SGS)",
+      "aliases": [
+        "bcb"
+      ],
+      "orgao": "Banco Central do Brasil (BCB)",
+      "licenca": null,
+      "homepage": "https://www.bcb.gov.br/estatisticas/tabelaestatistica",
+      "cadencia": "daily",
+      "dominio": "macroeconomia",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "bcb-sgs"
+    },
+    {
+      "id": "capes",
+      "nome": "CAPES - Pós-Graduação e Teses",
+      "aliases": [],
+      "orgao": "Coordenação de Aperfeiçoamento de Pessoal de Nível Superior (CAPES)",
+      "licenca": "Creative Commons Atribuição (CC BY)",
+      "homepage": "https://dadosabertos.capes.gov.br",
+      "cadencia": "yearly",
+      "dominio": "educacao",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "capes"
+    },
+    {
+      "id": "comex",
+      "nome": "Comércio Exterior (Comex Stat)",
+      "aliases": [
+        "secex-comex"
+      ],
+      "orgao": "Ministério do Desenvolvimento, Indústria, Comércio e Serviços (MDIC)",
+      "licenca": "Creative Commons Atribuição-SemDerivações 3.0 (CC BY-ND 3.0)",
+      "homepage": "https://www.gov.br/mdic/pt-br/assuntos/comercio-exterior/estatisticas/base-de-dados-bruta",
+      "cadencia": "monthly",
+      "dominio": "macroeconomia",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "comex"
+    },
+    {
+      "id": "cvm",
+      "nome": "CVM - Dados Abertos",
+      "aliases": [],
+      "orgao": "Comissão de Valores Mobiliários (CVM)",
+      "licenca": null,
+      "homepage": "https://dados.cvm.gov.br/dados/",
+      "cadencia": "daily",
+      "dominio": "financas",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "cvm"
+    },
+    {
+      "id": "datasus",
+      "nome": "DATASUS - Microdados do SUS",
+      "aliases": [],
+      "orgao": "Departamento de Informática do Sistema Único de Saúde (DATASUS), Ministério da Saúde",
+      "licenca": null,
+      "homepage": "https://datasus.saude.gov.br",
+      "cadencia": "monthly",
+      "dominio": "saude",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "datasus"
+    },
+    {
+      "id": "inep",
+      "nome": "INEP - Microdados da Educação",
+      "aliases": [],
+      "orgao": "Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira (INEP)",
+      "licenca": null,
+      "homepage": "https://www.gov.br/inep/",
+      "cadencia": "yearly",
+      "dominio": "educacao",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "inep"
+    },
+    {
+      "id": "infosiga",
+      "nome": "Infosiga.SP - Sinistros de Trânsito",
+      "aliases": [],
+      "orgao": "Departamento Estadual de Trânsito de São Paulo (Detran-SP)",
+      "licenca": null,
+      "homepage": "https://infosiga.detran.sp.gov.br/",
+      "cadencia": null,
+      "dominio": "transporte",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "infosiga"
+    },
+    {
+      "id": "inmet",
+      "nome": "INMET - Banco de Dados Meteorológicos (BDMEP)",
+      "aliases": [],
+      "orgao": "Instituto Nacional de Meteorologia (INMET)",
+      "licenca": null,
+      "homepage": "https://portal.inmet.gov.br/dadoshistoricos",
+      "cadencia": "monthly",
+      "dominio": "agropecuaria",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "inmet"
+    },
+    {
+      "id": "ipeadata",
+      "nome": "ipeadata",
+      "aliases": [],
+      "orgao": null,
+      "licenca": null,
+      "homepage": null,
+      "cadencia": null,
+      "dominio": null,
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "ipeadata"
+    },
+    {
+      "id": "loterias",
+      "nome": "Loterias CAIXA",
+      "aliases": [],
+      "orgao": "Caixa Econômica Federal",
+      "licenca": null,
+      "homepage": "https://loterias.caixa.gov.br",
+      "cadencia": "irregular",
+      "dominio": null,
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "loterias"
+    },
+    {
+      "id": "ons",
+      "nome": "ONS - Dados Abertos",
+      "aliases": [],
+      "orgao": "Operador Nacional do Sistema Elétrico (ONS)",
+      "licenca": null,
+      "homepage": "https://dados.ons.org.br",
+      "cadencia": "daily",
+      "dominio": "energia",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "ons"
+    },
+    {
+      "id": "pdet",
+      "nome": "MTE/PDET - CAGED e RAIS",
+      "aliases": [],
+      "orgao": "Ministério do Trabalho e Emprego (MTE)",
+      "licenca": null,
+      "homepage": "http://pdet.mte.gov.br/microdados-rais-e-caged",
+      "cadencia": "monthly",
+      "dominio": "trabalho",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "pdet"
+    },
+    {
+      "id": "pgfn",
+      "nome": "PGFN - Dívida Ativa da União e FGTS",
+      "aliases": [],
+      "orgao": "Procuradoria-Geral da Fazenda Nacional (PGFN)",
+      "licenca": null,
+      "homepage": "https://dadosabertos.pgfn.gov.br",
+      "cadencia": "quarterly",
+      "dominio": "fiscal",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "pgfn"
+    },
+    {
+      "id": "rfb-cnpj",
+      "nome": "Receita Federal - Dados Públicos do CNPJ",
+      "aliases": [
+        "rfb"
+      ],
+      "orgao": "Receita Federal do Brasil (RFB)",
+      "licenca": null,
+      "homepage": "https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/cadastros/consultas/dados-publicos-cnpj",
+      "cadencia": "monthly",
+      "dominio": "empresas",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "rfb-cnpj"
+    },
+    {
+      "id": "rtn",
+      "nome": "rtn",
+      "aliases": [],
+      "orgao": null,
+      "licenca": null,
+      "homepage": null,
+      "cadencia": null,
+      "dominio": null,
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "rtn"
+    },
+    {
+      "id": "sidra",
+      "nome": "IBGE - SIDRA e Agregados",
+      "aliases": [],
+      "orgao": "Instituto Brasileiro de Geografia e Estatística (IBGE)",
+      "licenca": null,
+      "homepage": "https://www.ibge.gov.br/",
+      "cadencia": "monthly",
+      "dominio": "macroeconomia",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "sidra"
+    },
+    {
+      "id": "sigtap",
+      "nome": "SIGTAP - Tabela de Procedimentos, Medicamentos e OPM do SUS",
+      "aliases": [
+        "datasus-sigtap"
+      ],
+      "orgao": "Departamento de Informática do Sistema Único de Saúde (DATASUS), Ministério da Saúde",
+      "licenca": null,
+      "homepage": "http://sigtap.datasus.gov.br/",
+      "cadencia": "monthly",
+      "dominio": "saude",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "sigtap"
+    },
+    {
+      "id": "tesouro-direto",
+      "nome": "Tesouro Direto",
+      "aliases": [
+        "td",
+        "tddata",
+        "tesouro_direto"
+      ],
+      "orgao": "Tesouro Nacional (STN/MF)",
+      "licenca": "Open Data Commons Open Database License (ODbL)",
+      "homepage": "https://www.tesourotransparente.gov.br/ckan/",
+      "cadencia": "daily",
+      "dominio": "fiscal",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "td"
+    },
+    {
+      "id": "transparencia-sp",
+      "nome": "Portal da Transparência SP - Remuneração",
+      "aliases": [
+        "transparencia_sp"
+      ],
+      "orgao": "Controladoria Geral do Estado de São Paulo (CGE-SP)",
+      "licenca": null,
+      "homepage": "https://www.transparencia.sp.gov.br",
+      "cadencia": "monthly",
+      "dominio": "fiscal",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "transparencia-sp"
+    },
+    {
+      "id": "tse",
+      "nome": "TSE - Dados Abertos Eleitorais",
+      "aliases": [],
+      "orgao": "Tribunal Superior Eleitoral (TSE)",
+      "licenca": "Creative Commons Atribuição (CC BY)",
+      "homepage": "https://dadosabertos.tse.jus.br",
+      "cadencia": "irregular",
+      "dominio": "judiciario",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "tse"
+    }
+  ]
+}
