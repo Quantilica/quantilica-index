@@ -50,7 +50,7 @@
       "cadencia": "daily",
       "dominio": "financas",
       "redistribuicao": "restrita",
-      "restricao_nota": "Termos de uso da B3 vedam coleta automatizada; sem licença aberta. Uso interno.",
+      "restricao_nota": null,
       "entry_point": "b3"
     },
     {
