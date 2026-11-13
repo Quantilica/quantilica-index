@@ -138,6 +138,22 @@
       "entry_point": "datasus"
     },
     {
+      "id": "ibge-sidra",
+      "nome": "IBGE - SIDRA e Agregados",
+      "aliases": [
+        "sidra",
+        "ibge"
+      ],
+      "orgao": "Instituto Brasileiro de Geografia e Estatística (IBGE)",
+      "licenca": "Sem licença declarada; dados públicos pela Lei 12.527/2011 (LAI) e Decreto 8.777/2016",
+      "homepage": "https://www.ibge.gov.br/",
+      "cadencia": "monthly",
+      "dominio": "macroeconomia",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "entry_point": "ibge-sidra"
+    },
+    {
       "id": "inep",
       "nome": "INEP - Microdados da Educação",
       "aliases": [],
@@ -270,21 +286,6 @@
       "redistribuicao": null,
       "restricao_nota": null,
       "entry_point": "rtn"
-    },
-    {
-      "id": "sidra",
-      "nome": "IBGE - SIDRA e Agregados",
-      "aliases": [
-        "ibge"
-      ],
-      "orgao": "Instituto Brasileiro de Geografia e Estatística (IBGE)",
-      "licenca": "Sem licença declarada; dados públicos pela Lei 12.527/2011 (LAI) e Decreto 8.777/2016",
-      "homepage": "https://www.ibge.gov.br/",
-      "cadencia": "monthly",
-      "dominio": "macroeconomia",
-      "redistribuicao": null,
-      "restricao_nota": null,
-      "entry_point": "sidra"
     },
     {
       "id": "sigtap",
