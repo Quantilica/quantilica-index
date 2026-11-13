@@ -40,6 +40,7 @@ FETCHERS = [
     "pgfn-fetcher",
     "rfb-cnpj-fetcher",
     "rtn-fetcher",
+    "ibge-sidra-fetcher",
     "sidra-fetcher",
     "sidra-sql",
     "sigtap-fetcher",
@@ -50,6 +51,37 @@ FETCHERS = [
     "quantilica-catalog",
     "quantilica-sql",
 ]
+
+# Renome `sidra-fetcher` -> `ibge-sidra-fetcher` (13/11/2026), sem módulo de
+# compatibilidade. Os dois nomes ficam no índice:
+# - `sidra-fetcher` é congelado: só as wheels antigas (`sidra_fetcher-*`);
+# - `ibge-sidra-fetcher` recebe as novas (`ibge_sidra_fetcher-*`).
+# As releases moram no mesmo repositório. Enquanto o GitHub não o renomeia, ele
+# se chama `sidra-fetcher`; depois, `sidra-fetcher` redireciona para o nome novo
+# e devolve as mesmas releases, por isso o filtro pelo nome do arquivo (PEP 427)
+# é o que separa os dois pacotes.
+REPOS_DO_PACOTE: dict[str, list[str]] = {
+    "ibge-sidra-fetcher": ["ibge-sidra-fetcher", "sidra-fetcher"],
+}
+PREFIXO_DE_ARQUIVO: dict[str, str] = {
+    "ibge-sidra-fetcher": "ibge_sidra_fetcher-",
+    "sidra-fetcher": "sidra_fetcher-",
+}
+
+# Apelidos do `sources.json` que não saem do nome do repositório. Um
+# `quantilica install sidra` (ou `ibge`) de um cli antigo, que lê este arquivo,
+# passa a instalar o pacote renomeado em vez de congelar na última wheel antiga;
+# o fetcher novo declara os mesmos apelidos no registro, então o cli o descobre.
+APELIDOS_DE_FONTE: dict[str, str] = {
+    "sidra": "ibge-sidra-fetcher",
+    "ibge": "ibge-sidra-fetcher",
+}
+
+
+def asset_do_pacote(pkg_name: str, asset_name: str) -> bool:
+    """Diz se o arquivo pertence ao pacote (só filtra os pacotes renomeados)."""
+    prefixo = PREFIXO_DE_ARQUIVO.get(pkg_name)
+    return prefixo is None or asset_name.startswith(prefixo)
 
 
 def fetch_releases(repo: str, token: str | None = None) -> list[dict]:
@@ -76,18 +108,14 @@ def generate_index():
     packages_found: list[str] = []
 
     for repo in FETCHERS:
-        releases = fetch_releases(repo, token)
+        pkg_name = repo.lower()
+        releases: list[dict] = []
+        for candidato in REPOS_DO_PACOTE.get(pkg_name, [repo]):
+            releases = fetch_releases(candidato, token)
+            if releases:
+                break
         if not releases:
             continue
-
-        pkg_name = repo.lower()
-        packages_found.append(pkg_name)
-
-        short_name = pkg_name.replace("-fetcher", "")
-        sources_map[short_name] = repo
-
-        pkg_dir = SIMPLE_DIR / pkg_name
-        pkg_dir.mkdir(parents=True, exist_ok=True)
 
         links: list[str] = []
         for release in releases:
@@ -100,8 +128,22 @@ def generate_index():
                     or name.endswith(".tar.gz")
                     or name.endswith(".zip")
                 )
-                if is_pkg:
+                if is_pkg and asset_do_pacote(pkg_name, name):
                     links.append(f'    <a href="{download_url}">{name}</a><br/>')
+
+        # Pacote renomeado sem nenhum arquivo (ainda sem release com o nome
+        # novo) não entra no índice: o cli trata o que o índice lista como
+        # instalável.
+        if pkg_name in PREFIXO_DE_ARQUIVO and not links:
+            continue
+
+        packages_found.append(pkg_name)
+
+        short_name = pkg_name.replace("-fetcher", "")
+        sources_map[short_name] = repo
+
+        pkg_dir = SIMPLE_DIR / pkg_name
+        pkg_dir.mkdir(parents=True, exist_ok=True)
 
         html_content = f"""<!DOCTYPE html>
 <html>
@@ -115,6 +157,10 @@ def generate_index():
 </html>
 """
         (pkg_dir / "index.html").write_text(html_content, encoding="utf-8")
+
+    for apelido, repo in APELIDOS_DE_FONTE.items():
+        if repo in packages_found:
+            sources_map[apelido] = repo
 
     root_links = [
         f'    <a href="{pkg}/">{pkg}</a><br/>' for pkg in sorted(packages_found)
