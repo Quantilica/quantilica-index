@@ -6,6 +6,14 @@ on:
   schedule:
     - cron: "0 4 * * *"
   workflow_dispatch:
+  # `registro.toml` é a fonte do registro e da lista de pacotes: mexer nele
+  # republica sem esperar o cron.
+  push:
+    branches: [main]
+    paths:
+      - registro.toml
+      - scripts/**
+      - .github/workflows/index.yml
 
 jobs:
   build-and-deploy:
@@ -21,10 +29,63 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # Reserva do registro: se a montagem abaixo falhar (cli sem a v2, release
+      # ainda não indexada, instalação que não resolve), o registro que já está
+      # no ar continua no ar. Ele também alimenta o `gen_pip_index` (distribuição
+      # e apelidos atuais). Sem ele, a cópia commitada, só para o 1º ciclo.
+      - name: Registro anterior (reserva)
+        run: |
+          mkdir -p public
+          base=https://index.quantilica.com
+          if curl -fsSL --retry 3 --max-time 30 "$base/registry.json" -o public/registry.json \
+              && python -c "import json,sys; d=json.load(open('public/registry.json')); assert d['fetchers']"; then
+            curl -fsSL --retry 3 --max-time 30 "$base/registry.json.sha256" \
+              -o public/registry.json.sha256 || rm -f public/registry.json.sha256
+            echo "registro anterior: $(python -c "import json; d=json.load(open('public/registry.json')); print('v%s, %d fetchers' % (d['version'], len(d['fetchers'])))")"
+          else
+            rm -f public/registry.json public/registry.json.sha256
+            if [ -f registry.json ]; then
+              cp registry.json public/registry.json
+              echo "::warning::registro publicado indisponível; usando a cópia commitada."
+            else
+              echo "::warning::sem registro anterior; o índice sai sem registry.json."
+            fi
+          fi
+
       - name: Generate PEP 503 Index
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/gen_pip_index.py
+
+      # O registro é montado instalando os fetchers DO ÍNDICE QUE ACABOU DE SER
+      # GERADO (servido em 127.0.0.1), não do que está no ar: uma release nova
+      # entra no registro na mesma execução que a publica. O build falha alto
+      # (id faltando, aviso do export, sha256), mas não derruba o índice.
+      - name: Build registry.json
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 --directory public >/dev/null 2>&1 &
+          servidor=$!
+          for _ in $(seq 1 20); do
+            curl -fs -o /dev/null http://127.0.0.1:8765/simple/ && break
+            sleep 0.5
+          done
+          set +e
+          python scripts/build_registry.py --index http://127.0.0.1:8765/simple/
+          rc=$?
+          set -e
+          kill "$servidor" 2>/dev/null || true
+          case "$rc" in
+            0) echo "registry.json atualizado." >> "$GITHUB_STEP_SUMMARY" ;;
+            3) msg="o quantilica-cli publicado ainda não tem registry export --ecossistema" ;;
+            *) msg="a montagem do registro falhou (veja o log acima)" ;;
+          esac
+          if [ "$rc" != 0 ]; then
+            echo "::warning::$msg; o índice PEP 503 é publicado e o registry.json anterior fica."
+            echo "Registro NÃO atualizado: $msg." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # Releases simultâneos disparam este workflow ao mesmo tempo e o push no
       # gh-pages perde a corrida de ref ("cannot lock ref ... is at <x> but
