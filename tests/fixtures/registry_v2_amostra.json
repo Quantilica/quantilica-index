@@ -1,0 +1,86 @@
+{
+  "version": 2,
+  "fetchers": [
+    {
+      "id": "b3",
+      "nome": "B3 - Cotações Históricas e Índices",
+      "aliases": [],
+      "orgao": "B3 S.A. - Brasil, Bolsa, Balcão (B3)",
+      "licenca": null,
+      "homepage": "https://www.b3.com.br/pt_br/market-data-e-indices/servicos-de-dados/market-data/historico/mercado-a-vista/cotacoes-historicas/",
+      "cadencia": "daily",
+      "dominio": "financas",
+      "redistribuicao": "restrita",
+      "restricao_nota": "Termos de uso da B3 vedam coleta automatizada; sem licença aberta. Uso interno.",
+      "distribution": "b3-fetcher",
+      "module": "b3_fetcher",
+      "repo": "https://github.com/Quantilica/b3-fetcher",
+      "entry_point": "b3",
+      "lake_entry_point": "b3",
+      "source_id": "b3",
+      "lake_source_id": "b3",
+      "version": "0.4.1",
+      "docs_pasta": "mercado-capitais",
+      "vitrine": false,
+      "ci_integracao": false,
+      "json_leve": false,
+      "mascote": null,
+      "health_url": null,
+      "historico": [],
+      "info_declared": true,
+      "freshness_policy": "head_fallback_get",
+      "default_output": "/data/b3",
+      "groups": [
+        "cotacaohistorica",
+        "derivativos_agro",
+        "indices_carteiras"
+      ],
+      "lake": true,
+      "error": null
+    },
+    {
+      "id": "ibge-sidra",
+      "nome": "IBGE - SIDRA e Agregados",
+      "aliases": [
+        "sidra",
+        "ibge"
+      ],
+      "orgao": "Instituto Brasileiro de Geografia e Estatística (IBGE)",
+      "licenca": "Sem licença declarada; dados públicos pela Lei 12.527/2011 (LAI) e Decreto 8.777/2016",
+      "homepage": "https://www.ibge.gov.br/",
+      "cadencia": "monthly",
+      "dominio": "macroeconomia",
+      "redistribuicao": null,
+      "restricao_nota": null,
+      "distribution": "ibge-sidra-fetcher",
+      "module": "ibge_sidra_fetcher",
+      "repo": "https://github.com/Quantilica/ibge-sidra-fetcher",
+      "entry_point": "ibge-sidra",
+      "lake_entry_point": null,
+      "source_id": "sidra",
+      "lake_source_id": null,
+      "version": "0.12.0",
+      "docs_pasta": "ibge",
+      "vitrine": true,
+      "ci_integracao": true,
+      "json_leve": true,
+      "mascote": "fish",
+      "health_url": "https://servicodados.ibge.gov.br/api/v3/calendario",
+      "historico": [
+        {
+          "distribution": "sidra-fetcher",
+          "repo": "Quantilica/sidra-fetcher",
+          "id": "sidra",
+          "data": "2026-11-13"
+        }
+      ],
+      "info_declared": true,
+      "freshness_policy": "remote_only",
+      "default_output": "/data/sidra",
+      "groups": [],
+      "lake": false,
+      "error": null
+    }
+  ],
+  "sha256": "767ce18892bdd68c41f391e42d48fe9bcc376ef9c9e072eb092bd149474437cf"
+}
