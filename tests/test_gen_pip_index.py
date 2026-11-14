@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import re
 from pathlib import Path
 
+import gen_pip_index as gen
 import pytest
 
 RAIZ = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location(
-    "gen_pip_index", RAIZ / "scripts" / "gen_pip_index.py"
-)
-gen = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(gen)
 
 
 def _release(*arquivos: str) -> dict:
@@ -34,11 +29,43 @@ NOVAS = _release(
 )
 
 
+REGISTRO_SIDRA = """
+[ibge-sidra]
+docs_pasta = "ibge"
+
+[[ibge-sidra.historico]]
+distribution = "sidra-fetcher"
+repo = "Quantilica/sidra-fetcher"
+id = "sidra"
+data = 2026-11-13
+"""
+
+
 @pytest.fixture
 def indice(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(gen, "FETCHERS", ["ibge-sidra-fetcher", "sidra-fetcher"])
-    monkeypatch.setattr(gen, "REGISTRY_FILE", tmp_path / "registry.json")
+    # O renome do SIDRA vem do `historico`, não de uma lista escrita no gerador.
+    (tmp_path / "registro.toml").write_text(REGISTRO_SIDRA, encoding="utf-8")
+    # Registro publicado: traz os apelidos do fetcher (`ibge` não está no TOML).
+    (tmp_path / "public").mkdir()
+    (tmp_path / "public" / "registry.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "fetchers": [
+                    {
+                        "id": "ibge-sidra",
+                        "aliases": ["sidra", "ibge"],
+                        "distribution": "ibge-sidra-fetcher",
+                        "repo": "https://github.com/Quantilica/ibge-sidra-fetcher",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gen, "OUTROS_PACOTES", [])
+    monkeypatch.setattr(gen, "REGISTRO_TOML", tmp_path / "registro.toml")
 
     def gerar(releases_por_repo: dict[str, list[dict]]):
         monkeypatch.setattr(
