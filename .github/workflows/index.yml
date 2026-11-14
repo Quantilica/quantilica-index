@@ -51,8 +51,9 @@ jobs:
 
       # Reserva do registro: o que está no ar (gh-pages). Alimenta o
       # gen_pip_index (distribuição e apelidos atuais) e fica de registro
-      # anterior se a montagem falhar. A cópia commitada só entra se o gh-pages
-      # não puder ser lido.
+      # anterior se a montagem falhar. Não há cópia commitada: se o gh-pages não
+      # puder ser lido, a reserva é "nenhuma" e o deploy só segue se o site
+      # responde 404 ao registry.json (passo "Montar o que vai ao ar").
       - name: Ler o gh-pages anterior
         id: anterior
         continue-on-error: true
@@ -72,10 +73,6 @@ jobs:
             [ -f anterior/registry.json.sha256 ] && cp anterior/registry.json.sha256 public/
             echo "origem=gh-pages" >> "$GITHUB_OUTPUT"
             echo "registro anterior (gh-pages): $(python -c 'import json; d=json.load(open("public/registry.json")); print("v%s, %d fetchers" % (d["version"], len(d["fetchers"])))')"
-          elif [ -f registry.json ] && python -c "$validar" registry.json; then
-            cp registry.json public/registry.json
-            echo "origem=commitada" >> "$GITHUB_OUTPUT"
-            echo "::warning::sem registro legível no gh-pages; usando a cópia commitada (v1)."
           else
             echo "origem=nenhuma" >> "$GITHUB_OUTPUT"
             echo "::warning::sem registro anterior."
@@ -204,9 +201,9 @@ jobs:
             exit 0
           fi
           # Sem registro novo: vale a reserva, que já está em public/ (o
-          # registry.json do gh-pages). Se ela não é o gh-pages (cópia commitada
-          # ou nada), publicar pode tirar ou rebaixar o registro que o site já
-          # serve: só sigo se o site responde 404 para o registry.json.
+          # registry.json do gh-pages). Se ela não é o gh-pages (nada), publicar
+          # pode tirar o registro que o site já serve: só sigo se o site responde
+          # 404 para o registry.json.
           if [ "$RESERVA" = gh-pages ]; then
             echo "::warning::sem registro novo; mantendo o registry.json do gh-pages."
             exit 0
