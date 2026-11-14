@@ -1,0 +1,186 @@
+# Fatos do ecossistema sobre cada fetcher: onde ele aparece e como.
+#
+# Uma seção por id (o `id` do `FetcherInfo`, não a distribuição). Este arquivo é
+# a terceira camada do registro público: a identidade do pacote (distribuição,
+# módulo, repositório, versão) vem dos metadados do pacote instalado e os fatos
+# da fonte vêm do `FetcherInfo`; aqui só entra o que nenhum dos dois sabe.
+# `scripts/build_registry.py` o junta ao export e publica `registry.json`.
+#
+#   docs_pasta     seção de `docs/docs/fontes/` (vocabulário `DOCS_PASTAS`, no core)
+#   vitrine        tem cartão no site
+#   ci_integracao  entra no CI de integração do core
+#   json_leve      série JSON leve da auditoria (isenta de lake Hive)
+#   mascote        nome do mascote do painel dos workers (arquivo sem extensão)
+#   health_url     sonda do `quantilica health`
+#   historico      nomes anteriores (renomes): distribution, repo, id e data
+#
+# Fetcher novo: acrescente a seção. Renome: mantenha a seção do id novo e
+# acrescente a entrada em `historico` (o índice continua servindo o nome antigo).
+
+[anac]
+docs_pasta = "aviacao"
+vitrine = true
+ci_integracao = true
+json_leve = false
+
+[anp]
+docs_pasta = "petroleo"
+vitrine = true
+ci_integracao = true
+json_leve = false
+
+[antt]
+docs_pasta = "transportes"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[b3]
+docs_pasta = "mercado-capitais"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[bcb-microdados]
+docs_pasta = "bcb"
+vitrine = false
+ci_integracao = false
+json_leve = false
+mascote = "hedgehog"
+
+[bcb-sgs]
+docs_pasta = "bcb"
+vitrine = true
+ci_integracao = true
+json_leve = true
+mascote = "hedgehog"
+health_url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados?formato=json"
+
+[capes]
+docs_pasta = "educacao"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[comex]
+docs_pasta = "comex"
+vitrine = true
+ci_integracao = true
+json_leve = false
+health_url = "https://balanca.economia.gov.br"
+
+[cvm]
+docs_pasta = "mercado-capitais"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[datasus]
+docs_pasta = "saude"
+vitrine = true
+ci_integracao = true
+json_leve = false
+mascote = "alpaca"
+
+[ibge-sidra]
+docs_pasta = "ibge"
+vitrine = true
+ci_integracao = true
+json_leve = true
+mascote = "fish"
+health_url = "https://servicodados.ibge.gov.br/api/v3/calendario"
+
+[[ibge-sidra.historico]]
+distribution = "sidra-fetcher"
+repo = "Quantilica/sidra-fetcher"
+id = "sidra"
+data = 2026-11-13
+
+[inep]
+docs_pasta = "educacao"
+vitrine = true
+ci_integracao = true
+json_leve = false
+
+[infosiga]
+docs_pasta = "transportes"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[inmet]
+docs_pasta = "clima"
+vitrine = true
+ci_integracao = true
+json_leve = false
+health_url = "https://apitempo.inmet.gov.br/estacoes"
+
+[ipeadata]
+docs_pasta = "ipea"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[loterias]
+docs_pasta = "loterias"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[ons]
+docs_pasta = "energia"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[pdet]
+docs_pasta = "trabalho"
+vitrine = true
+ci_integracao = true
+json_leve = false
+
+[pgfn]
+docs_pasta = "tesouro"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[rfb-cnpj]
+docs_pasta = "empresas"
+vitrine = true
+ci_integracao = true
+json_leve = false
+
+[rtn]
+docs_pasta = "tesouro"
+vitrine = true
+ci_integracao = true
+json_leve = false
+mascote = "flamingo"
+
+[sigtap]
+docs_pasta = "saude"
+vitrine = false
+ci_integracao = false
+json_leve = false
+mascote = "alpaca"
+
+[tesouro-direto]
+docs_pasta = "tesouro"
+vitrine = true
+ci_integracao = true
+json_leve = false
+mascote = "sloth"
+health_url = "https://www.tesourotransparente.gov.br/ckan/api/3/action/package_search?rows=1"
+
+[transparencia-sp]
+docs_pasta = "governo"
+vitrine = false
+ci_integracao = false
+json_leve = false
+
+[tse]
+docs_pasta = "politica"
+vitrine = false
+ci_integracao = false
+json_leve = false
