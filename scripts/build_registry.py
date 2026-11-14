@@ -217,16 +217,62 @@ def confere(doc: dict, ids: list[str]) -> None:
         raise BuildError("o sha256 do export não bate com o conteúdo")
 
 
-def publica(doc: dict) -> dict:
-    """Tira do registro o que não é público e recalcula o `sha256`.
+# Campos públicos de cada fetcher: os do registro v1 publicado (os mesmos que o
+# `PUBLIC_FIELDS` de `infra/registry_build.py` leva ao site aberto) e os da v2.
+# Lista fechada: campo novo do export (de execução ou de operação, como `groups`,
+# `default_output` ou `ops`) só chega ao público se entrar aqui.
+CAMPOS_V1 = (
+    "id",
+    "nome",
+    "aliases",
+    "orgao",
+    "licenca",
+    "homepage",
+    "cadencia",
+    "dominio",
+    "redistribuicao",
+    "restricao_nota",
+    "entry_point",
+)
+CAMPOS_V2 = (
+    "distribution",
+    "module",
+    "repo",
+    "lake_entry_point",
+    "source_id",
+    "lake_source_id",
+    "version",
+    "docs_pasta",
+    "vitrine",
+    "ci_integracao",
+    "json_leve",
+    "mascote",
+    "health_url",
+    "historico",
+)
+CAMPOS_PUBLICOS = CAMPOS_V1 + CAMPOS_V2
 
-    O texto de `restricao_nota` (a justificativa interna de uma restrição de
-    redistribuição) não sai no registro público; `redistribuicao` continua.
+
+def publica(doc: dict) -> dict:
+    """Reduz o export ao registro público e recalcula o `sha256`.
+
+    Cada fetcher fica só com `CAMPOS_PUBLICOS`. O texto de `restricao_nota` (a
+    justificativa interna de uma restrição de redistribuição) vai como `null`,
+    como no v1 público; `redistribuicao` continua. No topo ficam `version`,
+    `fetchers` e `sha256`.
+
+    Raises:
+        BuildError: falta algum campo público em um fetcher.
     """
-    pub = {
-        **doc,
-        "fetchers": [{**f, "restricao_nota": None} for f in doc["fetchers"]],
-    }
+    fetchers = []
+    for f in doc["fetchers"]:
+        faltam = [k for k in CAMPOS_PUBLICOS if k not in f]
+        if faltam:
+            raise BuildError(f"{f.get('id')}: campos ausentes no export: {faltam}")
+        item = {k: f[k] for k in CAMPOS_PUBLICOS}
+        item["restricao_nota"] = None
+        fetchers.append(item)
+    pub = {"version": doc["version"], "fetchers": fetchers}
     pub["sha256"] = sha256_do_conteudo(pub)
     return pub
 

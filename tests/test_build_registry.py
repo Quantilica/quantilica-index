@@ -164,7 +164,39 @@ def test_problemas_do_stderr_ignora_ruido():
 # --- publicação ------------------------------------------------------------
 
 
-def test_publica_tira_restricao_nota_e_recalcula_o_sha256():
+CHAVES_PUBLICAS = {
+    "id", "nome", "aliases", "orgao", "licenca", "homepage", "cadencia", "dominio",
+    "redistribuicao", "restricao_nota", "entry_point",
+    "distribution", "module", "repo", "lake_entry_point", "source_id",
+    "lake_source_id", "version", "docs_pasta", "vitrine", "ci_integracao",
+    "json_leve", "mascote", "health_url", "historico",
+}  # fmt: skip
+NAO_PUBLICAS = {
+    "groups", "default_output", "freshness_policy", "lake", "error",
+    "info_declared", "ops",
+}  # fmt: skip
+
+
+def test_publica_so_com_as_chaves_permitidas():
+    doc = amostra()
+    for f in doc["fetchers"]:
+        f["ops"] = {"pool": "x"}
+    assert NAO_PUBLICAS <= set(doc["fetchers"][0]), "a amostra tem de ter os extras"
+    pub = br.publica(doc)
+    assert set(pub) == {"version", "fetchers", "sha256"}
+    for f in pub["fetchers"]:
+        assert set(f) == CHAVES_PUBLICAS
+    assert set(br.CAMPOS_PUBLICOS) == CHAVES_PUBLICAS
+
+
+def test_publica_as_chaves_do_v1_publicado_estao_na_lista():
+    v1 = json.loads(
+        (FIXTURES / "referencia_2026_11_14" / "registry.json").read_text("utf-8")
+    )
+    assert set(v1["fetchers"][0]) <= set(br.CAMPOS_PUBLICOS)
+
+
+def test_publica_zera_restricao_nota_e_recalcula_o_sha256():
     doc = amostra()
     b3 = next(f for f in doc["fetchers"] if f["id"] == "b3")
     assert NOTA_B3 in b3["restricao_nota"]
@@ -172,8 +204,17 @@ def test_publica_tira_restricao_nota_e_recalcula_o_sha256():
     assert all(f["restricao_nota"] is None for f in pub["fetchers"])
     assert pub["sha256"] == br.sha256_do_conteudo(pub) != doc["sha256"]
     # `redistribuicao` continua; o original não é alterado.
-    assert pub["fetchers"] == [{**f, "restricao_nota": None} for f in doc["fetchers"]]
+    assert {f["id"]: f["redistribuicao"] for f in pub["fetchers"]} == {
+        f["id"]: f["redistribuicao"] for f in doc["fetchers"]
+    }
     assert NOTA_B3 in b3["restricao_nota"]
+
+
+def test_publica_recusa_fetcher_sem_campo_publico():
+    doc = amostra()
+    del doc["fetchers"][0]["docs_pasta"]
+    with pytest.raises(br.BuildError, match="docs_pasta"):
+        br.publica(doc)
 
 
 # --- monta -----------------------------------------------------------------
@@ -204,6 +245,7 @@ def test_monta_grava_registry_json_e_sha256(tmp_path, registro_toml, monkeypatch
     assert gravado == pub
     assert gravado["version"] == 2
     assert all(f["restricao_nota"] is None for f in gravado["fetchers"])
+    assert all(set(f) == CHAVES_PUBLICAS for f in gravado["fetchers"])
     sha = (saida / "registry.json.sha256").read_text("utf-8").strip()
     assert sha == gravado["sha256"] == br.sha256_do_conteudo(gravado)
     assert not list(saida.glob("*.tmp"))
