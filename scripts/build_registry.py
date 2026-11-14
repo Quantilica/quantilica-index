@@ -187,6 +187,8 @@ def prepara_venv(workdir: Path, dists: list[str], index: str, cli_spec: str) -> 
             "pip",
             "install",
             "--quiet",
+            # cache do uv defasado esconde releases recém-publicadas (cli, fetchers)
+            "--refresh",
             "--python",
             str(python),
             "--index",
