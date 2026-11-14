@@ -373,7 +373,7 @@ def monta(
     saida: Path,
     *,
     index: str = INDEX_PADRAO,
-    cli_spec: str = "quantilica-cli",
+    cli_spec: str = "quantilica-cli>=0.22",
     python: Path | str | None = None,
     extra_paths: list[Path] | None = None,
     workdir: Path | None = None,
@@ -433,7 +433,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument(
         "--cli-spec",
-        default="quantilica-cli",
+        default="quantilica-cli>=0.22",
         help="o que instalar como cli (ex.: 'quantilica-cli>=0.22' ou um caminho)",
     )
     ap.add_argument(
