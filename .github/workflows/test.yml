@@ -1,0 +1,45 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Ambiente de teste
+        run: |
+          uv venv --python 3.12 .venv
+          uv pip install --python .venv/bin/python pytest ruff
+          # O core valida o registro.toml. Enquanto a release com o registro v2
+          # não existe, o teste de paridade com o core é pulado (-rs mostra).
+          uv pip install --python .venv/bin/python quantilica-core
+          if .venv/bin/python -c "from quantilica.core.registry import carrega_registro_ecossistema" 2>/dev/null; then
+            echo "quantilica-core com o registro v2: validação completa do registro.toml."
+          else
+            echo "::warning::quantilica-core publicado ainda sem o registro v2; o teste de paridade do registro.toml com o core é PULADO (só a validação estrutural roda)."
+          fi
+
+      - name: Ruff
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+
+      - name: Validar registro.toml
+        run: .venv/bin/python scripts/valida_registro.py
+
+      - name: Pytest
+        run: .venv/bin/python -m pytest tests -q -rs
