@@ -23,7 +23,7 @@ jobs:
       - name: Ambiente de teste
         run: |
           uv venv --python 3.12 .venv
-          uv pip install --python .venv/bin/python pytest ruff
+          uv pip install --python .venv/bin/python pytest "ruff==0.15.18"
           # O core valida o registro.toml. Enquanto a release com o registro v2
           # não existe, o teste de paridade com o core é pulado (-rs mostra).
           uv pip install --python .venv/bin/python quantilica-core
