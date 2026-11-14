@@ -15,44 +15,84 @@ on:
       - scripts/**
       - .github/workflows/index.yml
 
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+# Releases simultâneos disparam este workflow ao mesmo tempo; as execuções
+# entram em fila (nenhuma é cancelada: cada uma pode trazer uma release nova).
+concurrency:
+  group: indice
+  cancel-in-progress: false
 
+permissions:
+  contents: read
+
+# Três jobs, para que código de terceiros nunca rode com permissão de escrita:
+#   indice   gera o PEP 503 (só lê releases públicas);
+#   registro instala os fetchers e roda o export (contents: read, sem token no
+#            checkout, sem segredo no ambiente);
+#   deploy   só baixa os artefatos e publica (contents: write); não instala nem
+#            importa nada.
+# O PEP 503 nunca deixa de ser publicado por causa do registro: se o registro
+# falhar, o deploy segue com o registry.json anterior e, no fim, o run fica
+# vermelho (falha de verdade) ou só amarelo (cli ainda sem --ecossistema).
+jobs:
+  indice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      reserva: ${{ steps.reserva.outputs.origem }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      # Reserva do registro: o que está no ar (gh-pages). Alimenta o
+      # gen_pip_index (distribuição e apelidos atuais) e fica de registro
+      # anterior se a montagem falhar. A cópia commitada só entra se o gh-pages
+      # não puder ser lido.
+      - name: Ler o gh-pages anterior
+        id: anterior
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: anterior
+          persist-credentials: false
 
-      # Reserva do registro: se a montagem abaixo falhar (cli sem a v2, release
-      # ainda não indexada, instalação que não resolve), o registro que já está
-      # no ar continua no ar. Ele também alimenta o `gen_pip_index` (distribuição
-      # e apelidos atuais). Sem ele, a cópia commitada, só para o 1º ciclo.
       - name: Registro anterior (reserva)
+        id: reserva
         run: |
           mkdir -p public
-          base=https://index.quantilica.com
-          if curl -fsSL --retry 3 --max-time 30 "$base/registry.json" -o public/registry.json \
-              && python -c "import json,sys; d=json.load(open('public/registry.json')); assert d['fetchers']"; then
-            curl -fsSL --retry 3 --max-time 30 "$base/registry.json.sha256" \
-              -o public/registry.json.sha256 || rm -f public/registry.json.sha256
-            echo "registro anterior: $(python -c "import json; d=json.load(open('public/registry.json')); print('v%s, %d fetchers' % (d['version'], len(d['fetchers'])))")"
+          validar='import json,sys; d=json.load(open(sys.argv[1])); assert d["fetchers"]'
+          if [ -f anterior/registry.json ] && python -c "$validar" anterior/registry.json; then
+            cp anterior/registry.json public/registry.json
+            [ -f anterior/registry.json.sha256 ] && cp anterior/registry.json.sha256 public/
+            echo "origem=gh-pages" >> "$GITHUB_OUTPUT"
+            echo "registro anterior (gh-pages): $(python -c 'import json; d=json.load(open("public/registry.json")); print("v%s, %d fetchers" % (d["version"], len(d["fetchers"])))')"
+          elif [ -f registry.json ] && python -c "$validar" registry.json; then
+            cp registry.json public/registry.json
+            echo "origem=commitada" >> "$GITHUB_OUTPUT"
+            echo "::warning::sem registro legível no gh-pages; usando a cópia commitada (v1)."
           else
-            rm -f public/registry.json public/registry.json.sha256
-            if [ -f registry.json ]; then
-              cp registry.json public/registry.json
-              echo "::warning::registro publicado indisponível; usando a cópia commitada."
-            else
-              echo "::warning::sem registro anterior; o índice sai sem registry.json."
-            fi
+            echo "origem=nenhuma" >> "$GITHUB_OUTPUT"
+            echo "::warning::sem registro anterior."
+          fi
+
+      - name: Install uv
+        continue-on-error: true
+        uses: astral-sh/setup-uv@v5
+
+      - name: Validar registro.toml
+        run: |
+          # Com o core (registro v2) a validação é a completa; sem rede, a estrutural.
+          if command -v uv >/dev/null; then
+            uv run --no-project --with quantilica-core python scripts/valida_registro.py \
+              || python scripts/valida_registro.py
+          else
+            python scripts/valida_registro.py
           fi
 
       - name: Generate PEP 503 Index
@@ -60,11 +100,45 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/gen_pip_index.py
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: indice
+          path: public
+          if-no-files-found: error
+          retention-days: 1
+
+  registro:
+    needs: indice
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      rc: ${{ steps.build.outputs.rc }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        continue-on-error: true
+        uses: astral-sh/setup-uv@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: indice
+          path: public
+
       # O registro é montado instalando os fetchers DO ÍNDICE QUE ACABOU DE SER
       # GERADO (servido em 127.0.0.1), não do que está no ar: uma release nova
       # entra no registro na mesma execução que a publica. O build falha alto
-      # (id faltando, aviso do export, sha256), mas não derruba o índice.
+      # (id faltando, fetcher fora do índice, aviso do export, sha256), mas o
+      # passo termina sempre; o código vai para o deploy decidir a cor do run.
       - name: Build registry.json
+        id: build
         run: |
           python -m http.server 8765 --bind 127.0.0.1 --directory public >/dev/null 2>&1 &
           servidor=$!
@@ -73,24 +147,82 @@ jobs:
             sleep 0.5
           done
           set +e
-          python scripts/build_registry.py --index http://127.0.0.1:8765/simple/
+          timeout 600 python scripts/build_registry.py \
+            --index http://127.0.0.1:8765/simple/ \
+            --simple-dir public/simple \
+            --registry-anterior public/registry.json \
+            --saida registro-out
           rc=$?
           set -e
           kill "$servidor" 2>/dev/null || true
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
           case "$rc" in
             0) echo "registry.json atualizado." >> "$GITHUB_STEP_SUMMARY" ;;
-            3) msg="o quantilica-cli publicado ainda não tem registry export --ecossistema" ;;
-            *) msg="a montagem do registro falhou (veja o log acima)" ;;
+            3) echo "::warning::o quantilica-cli publicado ainda não tem registry export --ecossistema; o registry.json anterior fica."
+               echo "Registro NÃO atualizado: cli sem --ecossistema (aviso)." >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "::error::a montagem do registro falhou (código $rc); o índice PEP 503 é publicado e o registry.json anterior fica."
+               echo "Registro NÃO atualizado: a montagem falhou (código $rc)." >> "$GITHUB_STEP_SUMMARY" ;;
           esac
-          if [ "$rc" != 0 ]; then
-            echo "::warning::$msg; o índice PEP 503 é publicado e o registry.json anterior fica."
-            echo "Registro NÃO atualizado: $msg." >> "$GITHUB_STEP_SUMMARY"
-          fi
 
-      # Releases simultâneos disparam este workflow ao mesmo tempo e o push no
-      # gh-pages perde a corrida de ref ("cannot lock ref ... is at <x> but
-      # expected <y>"). Cada tentativa re-busa o gh-pages remoto e força o push
-      # de novo até o deploy entrar (ou esgotar as tentativas).
+      - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.rc == '0'
+        with:
+          name: registro
+          path: registro-out
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    needs: [indice, registro]
+    # Roda mesmo com o registro falho ou cancelado; sem o índice, não há o que publicar.
+    if: ${{ always() && needs.indice.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: indice
+          path: public
+
+      - name: Baixar o registro novo
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: registro
+          path: registro-out
+
+      - name: Montar o que vai ao ar
+        env:
+          RESERVA: ${{ needs.indice.outputs.reserva }}
+        run: |
+          set -euo pipefail
+          if [ -f registro-out/registry.json ] && [ -f registro-out/registry.json.sha256 ]; then
+            cp registro-out/registry.json registro-out/registry.json.sha256 public/
+            echo "registry.json novo."
+            exit 0
+          fi
+          # Sem registro novo: vale a reserva, que já está em public/ (o
+          # registry.json do gh-pages). Se ela não é o gh-pages (cópia commitada
+          # ou nada), publicar pode tirar ou rebaixar o registro que o site já
+          # serve: só sigo se o site responde 404 para o registry.json.
+          if [ "$RESERVA" = gh-pages ]; then
+            echo "::warning::sem registro novo; mantendo o registry.json do gh-pages."
+            exit 0
+          fi
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --max-time 30 \
+            https://index.quantilica.com/registry.json || true)
+          if [ "$codigo" != 404 ]; then
+            echo "::error::sem registro novo nem reserva do gh-pages (reserva: $RESERVA) e o site respondeu '$codigo' ao registry.json; não publico para não tirar nem rebaixar o registro."
+            exit 1
+          fi
+          echo "::warning::publicando sem registro novo (reserva: $RESERVA); o site ainda não tinha registry.json."
+
+      # O gh-pages recebe push forçado e execuções simultâneas perdem a corrida de
+      # ref ("cannot lock ref ... is at <x> but expected <y>"). Cada tentativa
+      # re-busa o gh-pages remoto e força o push de novo até o deploy entrar (ou
+      # esgotar as tentativas). O token só existe neste passo.
       - name: Deploy to GitHub Pages (com retry)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -115,3 +247,23 @@ jobs:
           done
           echo "::error::push do gh-pages falhou após 5 tentativas"
           exit 1
+
+      # Depois do deploy: o índice já está no ar; aqui o run avisa que o
+      # registro não foi atualizado. Falha de verdade (código 1, timeout,
+      # cancelamento do job) deixa o run vermelho; o cli ainda sem
+      # --ecossistema (código 3) fica só no aviso amarelo.
+      - name: Registro atualizado?
+        env:
+          RESULTADO: ${{ needs.registro.result }}
+          RC: ${{ needs.registro.outputs.rc }}
+        run: |
+          if [ "$RESULTADO" != success ]; then
+            echo "::error::o job do registro terminou com '$RESULTADO' (sem código de saída); o índice foi publicado com o registry.json anterior."
+            exit 1
+          fi
+          case "$RC" in
+            0) echo "registro atualizado." ;;
+            3) echo "::warning::registro não atualizado: cli sem --ecossistema (aguarda a release do cli)." ;;
+            *) echo "::error::a montagem do registro falhou (código '$RC'); o índice foi publicado com o registry.json anterior."
+               exit 1 ;;
+          esac
