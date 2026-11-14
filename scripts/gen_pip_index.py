@@ -134,6 +134,26 @@ def _nome_do_repo(repo: str) -> str:
     return repo.rstrip("/").rsplit("/", 1)[-1].removesuffix(".git")
 
 
+def _historico_de(fid: str, bruto: object) -> tuple[tuple[str, str, str], ...]:
+    """`historico` do TOML como (distribuição, repositório, id).
+
+    Entrada malformada (sem chave, tipo errado) é pulada com aviso: o índice de
+    pacotes não cai por causa dela. `valida_registro.py` é quem a reprova.
+    """
+    if bruto is None:
+        return ()
+    if not isinstance(bruto, list):
+        print(f"::warning::[{fid}].historico ignorado: esperava uma lista de tabelas")
+        return ()
+    out = []
+    for i, h in enumerate(bruto):
+        try:
+            out.append((h["distribution"].lower(), _nome_do_repo(h["repo"]), h["id"]))
+        except (KeyError, TypeError, AttributeError) as exc:
+            print(f"::warning::[{fid}].historico[{i}] ignorado: {exc!r}")
+    return tuple(out)
+
+
 def carrega_registro(
     toml_path: Path | None = None, registry_path: Path | None = None
 ) -> Registro:
@@ -164,14 +184,11 @@ def carrega_registro(
 
     fetchers = []
     for fid in sorted(declarado):
-        secao = declarado[fid]
+        secao = declarado[fid] if isinstance(declarado[fid], dict) else {}
         pub = publicado.get(fid, {})
         dist = pub.get("distribution") or f"{fid}-fetcher"
         repo = _nome_do_repo(pub["repo"]) if pub.get("repo") else dist
-        historico = tuple(
-            (h["distribution"].lower(), _nome_do_repo(h["repo"]), h["id"])
-            for h in secao.get("historico", [])
-        )
+        historico = _historico_de(fid, secao.get("historico"))
         fetchers.append(
             Fetcher(
                 id=fid,

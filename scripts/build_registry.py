@@ -42,11 +42,14 @@ EXIT_CLI_SEM_SUPORTE = 3
 # O que o export imprime no stderr e que, aqui, é falha (não só aviso). O cli
 # só falha sozinho com `--strict` para parte disso; um repositório assumido
 # no lugar do declarado, por exemplo, sai como "Aviso:" e o registro seguiria
-# com o dado errado.
+# com o dado errado. Só vale o prefixo exato que o cli emite, no começo da
+# linha e com a caixa certa: um `print` de fetcher na importação (que o cli
+# desvia para o stderr) não casa com "aviso", "AVISO" ou texto indentado. Um
+# `print` que imite o prefixo exato derruba o build, o lado seguro.
 _LINHA_DE_PROBLEMA = re.compile(
-    r"^\s*(Aviso|Duplicidade|Falha ao carregar|Identidade|Registro do ecossistema)\b"
-    r"|sem seção no registro do ecossistema|sem info declarada",
-    re.IGNORECASE,
+    r"^(Aviso: |Duplicidade: |Falha ao carregar |Identidade: "
+    r"|Registro do ecossistema: "
+    r"|\d+ fetcher\(s\) sem (seção no registro do ecossistema|info declarada):)"
 )
 
 
@@ -72,6 +75,76 @@ def ids_do_registro(registro_toml: Path) -> list[str]:
 def distribuicao_de(fetcher_id: str) -> str:
     """Distribuição de um fetcher pela regra `<id>-fetcher`."""
     return f"{fetcher_id}-fetcher"
+
+
+def _normaliza(nome: str) -> str:
+    """Nome de projeto normalizado (PEP 503)."""
+    return re.sub(r"[-_.]+", "-", nome).lower()
+
+
+def no_indice(simple_dir: Path, dist: str) -> bool:
+    """A distribuição tem página com arquivos em `simple/<dist>/index.html`."""
+    pagina = simple_dir / _normaliza(dist) / "index.html"
+    try:
+        return "href=" in pagina.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def distribuicoes_a_instalar(
+    registro_toml: Path,
+    *,
+    anterior: Path | None = None,
+    simple_dir: Path | None = None,
+) -> list[str]:
+    """A distribuição a instalar para cada id do `registro.toml`, em ordem.
+
+    Para cada id, em ordem de preferência: a `distribution` do registro
+    anterior (quando é v2), a regra `<id>-fetcher` e as distribuições do
+    `historico`, da mais recente para a mais antiga (o id mudou e a
+    distribuição ficou, caso que o core aceita em `check_identidade`). Com
+    `simple_dir` (o índice que vai servir a instalação), vale a primeira que
+    existe nele: assim nenhuma instalação cai no PyPI por falta de página no
+    índice (confusão de dependências). Sem `simple_dir`, vale a primeira.
+
+    Raises:
+        BuildError: com `simple_dir`, id sem nenhuma distribuição no índice.
+    """
+    try:
+        dados = tomllib.loads(registro_toml.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise BuildError(f"{registro_toml}: {exc}") from exc
+    do_anterior: dict[str, str] = {}
+    if anterior is not None and anterior.is_file():
+        try:
+            for f in json.loads(anterior.read_text(encoding="utf-8"))["fetchers"]:
+                if f.get("distribution"):
+                    do_anterior[f["id"]] = f["distribution"]
+        except (ValueError, KeyError, TypeError) as exc:
+            print(f"::warning::registro anterior ilegível ({exc!r}); vale a regra")
+    dists: list[str] = []
+    ausentes: list[str] = []
+    for fid in sorted(dados):
+        secao = dados[fid] if isinstance(dados[fid], dict) else {}
+        candidatas = [do_anterior.get(fid), distribuicao_de(fid)]
+        for h in reversed(secao.get("historico") or []):
+            if isinstance(h, dict):
+                candidatas.append(h.get("distribution"))
+        candidatas = list(dict.fromkeys(c for c in candidatas if c))
+        if simple_dir is None:
+            dists.append(candidatas[0])
+            continue
+        achada = next((c for c in candidatas if no_indice(simple_dir, c)), None)
+        if achada is None:
+            ausentes.append(f"{fid} (tentei {', '.join(candidatas)})")
+        else:
+            dists.append(achada)
+    if ausentes:
+        raise BuildError(
+            f"sem página em {simple_dir} para: {'; '.join(ausentes)}; "
+            "não instalo o que o índice não serve (cairia no PyPI)"
+        )
+    return dists
 
 
 def sha256_do_conteudo(doc: dict) -> str:
@@ -176,7 +249,7 @@ def problemas_do_stderr(stderr: str) -> list[str]:
     return [
         linha.strip()
         for linha in stderr.splitlines()
-        if _LINHA_DE_PROBLEMA.search(linha)
+        if _LINHA_DE_PROBLEMA.match(linha)
     ]
 
 
@@ -302,13 +375,23 @@ def monta(
     python: Path | str | None = None,
     extra_paths: list[Path] | None = None,
     workdir: Path | None = None,
+    simple_dir: Path | None = None,
+    anterior: Path | None = None,
 ) -> dict:
     """Instala, exporta, confere e grava. Devolve o registro publicado."""
     ids = ids_do_registro(registro_toml)
     extra_paths = extra_paths or []
     with tempfile.TemporaryDirectory(prefix="registry-", dir=workdir) as tmp:
         if python is None:
-            dists = [distribuicao_de(i) for i in ids]
+            if simple_dir is None:
+                print(
+                    "::warning::sem --simple-dir: não confiro que o índice serve "
+                    "cada fetcher antes de instalar",
+                    file=sys.stderr,
+                )
+            dists = distribuicoes_a_instalar(
+                registro_toml, anterior=anterior, simple_dir=simple_dir
+            )
             python = prepara_venv(Path(tmp), dists, index, cli_spec)
         stdout, stderr = roda_export(python, registro_toml, extra_paths)
     if stderr.strip():
@@ -335,6 +418,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--saida", type=Path, default=Path("public"))
     ap.add_argument("--index", default=INDEX_PADRAO, help="índice PEP 503 dos fetchers")
     ap.add_argument(
+        "--simple-dir",
+        type=Path,
+        help="pasta `simple/` que o --index serve; antes de instalar, exige uma "
+        "página para cada fetcher (sem isso a instalação cairia no PyPI)",
+    )
+    ap.add_argument(
+        "--registry-anterior",
+        type=Path,
+        help="registry.json anterior: a `distribution` dele vale para o id que "
+        "foge da regra <id>-fetcher",
+    )
+    ap.add_argument(
         "--cli-spec",
         default="quantilica-cli",
         help="o que instalar como cli (ex.: 'quantilica-cli>=0.22' ou um caminho)",
@@ -360,6 +455,8 @@ def main(argv: list[str] | None = None) -> int:
             cli_spec=args.cli_spec,
             python=args.python,
             extra_paths=args.extra_path,
+            simple_dir=args.simple_dir,
+            anterior=args.registry_anterior,
         )
     except CliSemSuporte as exc:
         print(f"::warning::{exc}", file=sys.stderr)

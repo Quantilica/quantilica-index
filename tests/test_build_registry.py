@@ -408,3 +408,109 @@ def test_main_devolve_1_com_falha(tmp_path, registro_toml):
     assert proc.returncode == 1
     assert "::error::" in proc.stderr
     assert not (tmp_path / "public").exists()
+
+
+# --- stderr: só o prefixo exato do cli ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    "linha",
+    [
+        "aviso: do fetcher ao importar",
+        "AVISO: do fetcher",
+        "  Aviso: texto indentado (continuação)",
+        "Avisos recebidos",
+        "Identidade confirmada",
+        "Duplicidade",
+    ],
+)
+def test_problemas_do_stderr_nao_casa_com_texto_de_fetcher(linha):
+    assert br.problemas_do_stderr(linha + "\n") == []
+
+
+# --- distribuição a instalar (M5, M6) ----------------------------------------
+
+
+def pagina(simple: Path, dist: str, com_arquivos: bool = True) -> None:
+    pasta = simple / dist
+    pasta.mkdir(parents=True)
+    link = '<a href="https://x/y.whl">y.whl</a>' if com_arquivos else ""
+    (pasta / "index.html").write_text(f"<html>{link}</html>", encoding="utf-8")
+
+
+def toml_de(tmp_path: Path, texto: str) -> Path:
+    p = tmp_path / "r.toml"
+    p.write_text(texto, encoding="utf-8")
+    return p
+
+
+def test_distribuicoes_pela_regra_sem_indice(tmp_path):
+    p = toml_de(tmp_path, '[b3]\ndocs_pasta = "x"\n[ons]\ndocs_pasta = "x"\n')
+    assert br.distribuicoes_a_instalar(p) == ["b3-fetcher", "ons-fetcher"]
+
+
+def test_distribuicoes_prefere_a_do_registro_anterior(tmp_path):
+    p = toml_de(tmp_path, '[novo-id]\ndocs_pasta = "x"\n')
+    anterior = tmp_path / "anterior.json"
+    anterior.write_text(
+        json.dumps(
+            {"fetchers": [{"id": "novo-id", "distribution": "antigo-nome-fetcher"}]}
+        ),
+        encoding="utf-8",
+    )
+    assert br.distribuicoes_a_instalar(p, anterior=anterior) == ["antigo-nome-fetcher"]
+
+
+def test_distribuicoes_com_id_fora_da_regra_usa_o_historico(tmp_path):
+    """O id mudou e a distribuição ficou: só ela existe no índice."""
+    p = toml_de(
+        tmp_path,
+        '[novo-id]\ndocs_pasta = "x"\n[[novo-id.historico]]\n'
+        'distribution = "velho-fetcher"\nrepo = "Q/velho-fetcher"\n'
+        'id = "velho"\ndata = 2026-11-13\n',
+    )
+    simple = tmp_path / "simple"
+    pagina(simple, "velho-fetcher")
+    assert br.distribuicoes_a_instalar(p, simple_dir=simple) == ["velho-fetcher"]
+
+
+def test_distribuicoes_com_indice_fica_com_a_regra_quando_existe(tmp_path):
+    p = toml_de(
+        tmp_path,
+        '[ibge-sidra]\ndocs_pasta = "ibge"\n[[ibge-sidra.historico]]\n'
+        'distribution = "sidra-fetcher"\nrepo = "Q/sidra-fetcher"\n'
+        'id = "sidra"\ndata = 2026-11-13\n',
+    )
+    simple = tmp_path / "simple"
+    pagina(simple, "ibge-sidra-fetcher")
+    pagina(simple, "sidra-fetcher")
+    assert br.distribuicoes_a_instalar(p, simple_dir=simple) == ["ibge-sidra-fetcher"]
+
+
+def test_distribuicoes_falha_se_o_indice_nao_serve_o_fetcher(tmp_path):
+    p = toml_de(tmp_path, '[b3]\ndocs_pasta = "x"\n[ons]\ndocs_pasta = "x"\n')
+    simple = tmp_path / "simple"
+    pagina(simple, "b3-fetcher")
+    pagina(simple, "ons-fetcher", com_arquivos=False)  # página vazia não conta
+    with pytest.raises(br.BuildError, match="PyPI") as exc:
+        br.distribuicoes_a_instalar(p, simple_dir=simple)
+    assert "ons" in str(exc.value) and "b3 (" not in str(exc.value)
+
+
+def test_monta_instala_so_o_que_o_indice_serve(tmp_path, registro_toml, monkeypatch):
+    instaladas = []
+
+    def venv_falso(workdir, dists, index, cli_spec):
+        instaladas.extend(dists)
+        return "python-falso"
+
+    monkeypatch.setattr(br, "prepara_venv", venv_falso)
+    monkeypatch.setattr(br, "roda_export", export_ok(amostra()))
+    simple = tmp_path / "simple"
+    pagina(simple, "b3-fetcher")
+    with pytest.raises(br.BuildError, match="ibge-sidra"):
+        br.monta(registro_toml, tmp_path / "public", simple_dir=simple)
+    assert instaladas == []  # falhou antes de instalar
+    pagina(simple, "ibge-sidra-fetcher")
+    br.monta(registro_toml, tmp_path / "public", simple_dir=simple)
+    assert instaladas == ["b3-fetcher", "ibge-sidra-fetcher"]
