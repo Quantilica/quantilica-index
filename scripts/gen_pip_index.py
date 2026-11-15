@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""Gera índice estático de pacotes Python PEP 503/658 a partir do GitHub Releases."""
+"""Gera índice estático de pacotes Python PEP 503 a partir do GitHub Releases.
+
+PENDENTE (outro cartão): PEP 658 — publicar um `.metadata.json` ao lado de
+cada link com a URL `.../<arquivo>.metadata.json`. Aqui só sai o índice de
+links simples.
+"""
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
+import sys
 import tomllib
 import urllib.request
 from dataclasses import dataclass
@@ -56,6 +63,11 @@ class Fetcher:
     aliases: tuple[str, ...] = ()
     # (distribuição, repositório, id) anteriores, do mais antigo ao mais recente.
     historico: tuple[tuple[str, str, str], ...] = ()
+    # Obrigatório de Python (specifiers PEP 440) dos metadados do pacote, quando
+    # conhecido: hoje declarado no `registro.toml` (e aceito do registro
+    # publicado, para quando o export passar a trazê-lo do pyproject). O índice
+    # o põe em `data-requires-python` de cada link da distribuição atual.
+    requires_python: str | None = None
 
 
 def normaliza_arquivo(distribution: str) -> str:
@@ -128,6 +140,20 @@ class Registro:
                     out.setdefault(nome, f.distribution)
         return out
 
+    @property
+    def requires_python_por_distribuicao(self) -> dict[str, str]:
+        """`requires_python` por distribuição atual, quando conhecido.
+
+        Vale só para a distribuição atual de cada id: as distribuições do
+        `historico` ficam congeladas e as wheels antigas podem exigir outro
+        Python. Primeira declaração vence (ids saem em ordem de `sorted`).
+        """
+        out: dict[str, str] = {}
+        for f in self.fetchers:
+            if f.requires_python:
+                out.setdefault(f.distribution, f.requires_python)
+        return out
+
 
 def _nome_do_repo(repo: str) -> str:
     """`Quantilica/sidra-fetcher` ou a URL do GitHub -> `sidra-fetcher`."""
@@ -152,6 +178,16 @@ def _historico_de(fid: str, bruto: object) -> tuple[tuple[str, str, str], ...]:
         except (KeyError, TypeError, AttributeError) as exc:
             print(f"::warning::[{fid}].historico[{i}] ignorado: {exc!r}")
     return tuple(out)
+
+
+def _texto_opcional(fid: str, campo: str, bruto: object) -> str | None:
+    """Um campo de texto opcional de uma seção, ou None com aviso se inválido."""
+    if bruto is None:
+        return None
+    if isinstance(bruto, str) and bruto.strip():
+        return bruto
+    print(f"::warning::[{fid}].{campo} ignorado: esperava uma string não vazia")
+    return None
 
 
 def carrega_registro(
@@ -189,6 +225,15 @@ def carrega_registro(
         dist = pub.get("distribution") or f"{fid}-fetcher"
         repo = _nome_do_repo(pub["repo"]) if pub.get("repo") else dist
         historico = _historico_de(fid, secao.get("historico"))
+        requires_python = _texto_opcional(
+            fid, "requires_python", secao.get("requires_python")
+        )
+        if requires_python is None:
+            # Fallback: o registro publicado pode um dia trazer o que ele lê
+            # do pyproject do fetcher (specifiers reais dos metadados).
+            requires_python = _texto_opcional(
+                fid, "requires_python", pub.get("requires_python")
+            )
         fetchers.append(
             Fetcher(
                 id=fid,
@@ -196,6 +241,7 @@ def carrega_registro(
                 repo=repo,
                 aliases=tuple(pub.get("aliases") or ()),
                 historico=historico,
+                requires_python=requires_python,
             )
         )
     return Registro(tuple(fetchers))
@@ -209,20 +255,83 @@ def asset_do_pacote(
     return prefixo is None or asset_name.startswith(prefixo)
 
 
+class ErroConsultaReleases(Exception):
+    """Falha ao consultar as releases de um repositório na API do GitHub.
+
+    O chamador deve abortar o build: um índice publicado sem os arquivos de um
+    pacote seria pior que nenhum (o cli trataria o pacote como desatualizado).
+    """
+
+
+_LINK_PROXIMA = re.compile(r'<(?P<url>[^>]*)>;\s*rel=?"?next"?')
+
+
+def _proxima_pagina(link: str | None) -> str | None:
+    """A URL do `rel="next"` no cabeçalho `Link` da resposta, ou None."""
+    if not link:
+        return None
+    for parte in link.split(","):
+        m = _LINK_PROXIMA.search(parte.strip())
+        if m:
+            return m.group("url")
+    return None
+
+
 def fetch_releases(repo: str, token: str | None = None) -> list[dict]:
-    url = f"https://api.github.com/repos/{ORG_NAME}/{repo}/releases"
+    """Todas as releases do repositório, seguindo a paginação da API.
+
+    Pede 100 por página (`per_page=100`) e segue o cabeçalho `Link`
+    (`rel="next"`) até a última.
+
+    Raises:
+        ErroConsultaReleases: resposta fora do 200, JSON inválido ou falha de
+            rede — o índice não se monta com dados incompletos.
+    """
+    url = f"https://api.github.com/repos/{ORG_NAME}/{repo}/releases?per_page=100"
     headers = {"User-Agent": "quantilica-index-builder"}
     if token:
         headers["Authorization"] = f"token {token}"
 
-    try:
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            if resp.status == 200:
-                return json.loads(resp.read().decode("utf-8"))
-    except Exception as exc:
-        print(f"Aviso: Não foi possível obter releases de {repo}: {exc}")
-    return []
+    releases: list[dict] = []
+    visitadas: set[str] = set()
+    while url and url not in visitadas:
+        visitadas.add(url)
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.status
+                proxima = _proxima_pagina(resp.headers.get("Link"))
+                corpo = resp.read()
+            if status != 200:
+                raise ErroConsultaReleases(f"{repo}: HTTP {status} em {url}")
+            pagina = json.loads(corpo.decode("utf-8"))
+        except ErroConsultaReleases:
+            raise
+        except Exception as exc:
+            raise ErroConsultaReleases(
+                f"{repo}: falha ao consultar {url}: {exc}"
+            ) from exc
+        if not isinstance(pagina, list):
+            raise ErroConsultaReleases(f"{repo}: resposta inesperada da API em {url}")
+        releases.extend(pagina)
+        url = proxima
+    return releases
+
+
+def fragmento_sha256(digest: str | None) -> str:
+    """O fragmento `#sha256=<hex>` do link PEP 503, ou vazio se não houver.
+
+    A API das releases traz o campo `digest` como `<algoritmo>:<hex>` (hoje só
+    `sha256`). Outro algoritmo, prefixo ausente ou hex que não tenha 64 dígitos
+    não vira fragmento: pip compara o fragmento com o arquivo baixado, e um
+    valor errado quebraria toda a instalação.
+    """
+    valor = (digest or "").strip()
+    if valor.lower().startswith("sha256:"):
+        valor = valor[len("sha256:") :]
+    if re.fullmatch(r"[0-9a-fA-F]{64}", valor):
+        return f"#sha256={valor.lower()}"
+    return ""
 
 
 def generate_index(registro: Registro | None = None) -> None:
@@ -230,6 +339,7 @@ def generate_index(registro: Registro | None = None) -> None:
     registro = registro or carrega_registro()
     repos_do_pacote = registro.repos_do_pacote
     prefixos = registro.prefixo_de_arquivo
+    requires_python = registro.requires_python_por_distribuicao
     SIMPLE_DIR.mkdir(parents=True, exist_ok=True)
 
     sources_map: dict[str, str] = {}
@@ -246,6 +356,7 @@ def generate_index(registro: Registro | None = None) -> None:
             continue
 
         links: list[str] = []
+        reqpy = requires_python.get(pkg_name)
         for release in releases:
             for asset in release.get("assets", []):
                 name = asset.get("name", "")
@@ -257,7 +368,13 @@ def generate_index(registro: Registro | None = None) -> None:
                     or name.endswith(".zip")
                 )
                 if is_pkg and asset_do_pacote(pkg_name, name, prefixos):
-                    links.append(f'    <a href="{download_url}">{name}</a><br/>')
+                    sha = fragmento_sha256(asset.get("digest"))
+                    attr = (
+                        f' data-requires-python="{html.escape(reqpy)}"' if reqpy else ""
+                    )
+                    links.append(
+                        f'    <a href="{download_url}{sha}"{attr}>{name}</a><br/>'
+                    )
 
         # Pacote renomeado sem nenhum arquivo (ainda sem release com o nome
         # novo) não entra no índice: o cli trata o que o índice lista como
@@ -314,4 +431,8 @@ def generate_index(registro: Registro | None = None) -> None:
 
 
 if __name__ == "__main__":
-    generate_index()
+    try:
+        generate_index()
+    except ErroConsultaReleases as exc:
+        print(f"::error::build abortado: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
