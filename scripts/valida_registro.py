@@ -2,10 +2,12 @@
 """Valida o `registro.toml`: estrutura (stdlib) e, se houver, o core.
 
 A validação estrutural sempre roda: ids, seções, campos conhecidos, tipos e
-`historico` com `distribution`, `repo`, `id` e `data`. Se o `quantilica-core`
-instalado já traz `carrega_registro_ecossistema` (registro v2), a validação
-completa dele (vocabulário de `docs_pasta`, URLs, datas) roda também; sem ele,
-avisa e segue só com a estrutural.
+`historico` com `distribution`, `repo`, `id` e `data`. Com o `packaging`
+instalado, `requires_python` é conferido contra os specifiers PEP 440 (um
+valor como `"3.12"`, sem operador, deixa o pacote ininstalável). Se o
+`quantilica-core` instalado já traz `carrega_registro_ecossistema` (registro
+v2), a validação completa dele (vocabulário de `docs_pasta`, URLs, datas) roda
+também; sem ele, avisa e segue só com a estrutural.
 
     python scripts/valida_registro.py [registro.toml]
 
@@ -24,8 +26,30 @@ RAIZ = Path(__file__).resolve().parents[1]
 _ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _BOOLS = ("vitrine", "ci_integracao", "json_leve")
 _TEXTOS = ("docs_pasta", "mascote", "health_url")
-_CAMPOS = {*_BOOLS, *_TEXTOS, "historico"}
+_CAMPOS = {*_BOOLS, *_TEXTOS, "historico", "requires_python"}
 _RENOME = ("distribution", "repo", "id", "data")
+
+
+def _erro_specifier(valor: str) -> str | None:
+    """O motivo de um `requires_python` não ser specifiers PEP 440, ou None.
+
+    Usa o `packaging` (a mesma biblioteca do pip). Sem ele instalado, a
+    conferência é pulada com aviso: a validação estrutural roda em python puro.
+    """
+    try:
+        from packaging.specifiers import InvalidSpecifier, SpecifierSet
+    except ImportError:
+        print(
+            "::warning::packaging ausente: requires_python não foi conferido "
+            "contra os specifiers PEP 440.",
+            file=sys.stderr,
+        )
+        return None
+    try:
+        SpecifierSet(valor)
+    except InvalidSpecifier as exc:
+        return str(exc)
+    return None
 
 
 def erros_estruturais(dados: dict) -> list[str]:
@@ -49,6 +73,18 @@ def erros_estruturais(dados: dict) -> list[str]:
         for campo in ("mascote", "health_url"):
             if campo in secao and not isinstance(secao[campo], str):
                 erros.append(f"[{fid}] {campo} deve ser texto")
+        reqpy = secao.get("requires_python")
+        if reqpy is not None:
+            if not isinstance(reqpy, str) or not reqpy.strip():
+                erros.append(
+                    f"[{fid}] requires_python deve ser texto (specifiers PEP 440)"
+                )
+            else:
+                motivo = _erro_specifier(reqpy)
+                if motivo:
+                    erros.append(
+                        f"[{fid}] requires_python inválido ({reqpy!r}): {motivo}"
+                    )
         hist = secao.get("historico", [])
         if not isinstance(hist, list):
             erros.append(f"[{fid}] historico deve ser uma lista de tabelas")

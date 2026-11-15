@@ -85,8 +85,9 @@ jobs:
       - name: Validar registro.toml
         run: |
           # Com o core (registro v2) a validação é a completa; sem rede, a estrutural.
+          # O packaging confere o requires_python contra os specifiers PEP 440.
           if command -v uv >/dev/null; then
-            uv run --no-project --with quantilica-core python scripts/valida_registro.py \
+            uv run --no-project --with quantilica-core --with packaging python scripts/valida_registro.py \
               || python scripts/valida_registro.py
           else
             python scripts/valida_registro.py
@@ -95,7 +96,13 @@ jobs:
       - name: Generate PEP 503 Index
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/gen_pip_index.py
+        run: |
+          if command -v uv >/dev/null; then
+            uv run --no-project --with packaging python scripts/gen_pip_index.py \
+              || python scripts/gen_pip_index.py
+          else
+            python scripts/gen_pip_index.py
+          fi
 
       - uses: actions/upload-artifact@v4
         with:

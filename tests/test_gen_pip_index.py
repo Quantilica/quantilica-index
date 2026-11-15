@@ -192,6 +192,7 @@ def test_consulta_segue_a_paginacao_da_api(monkeypatch):
 
 
 def test_consulta_falha_eleva_erro_que_aborta_o_build(monkeypatch):
+    monkeypatch.setattr(gen.time, "sleep", lambda s: None)  # nova tentativa sem espera
     url = f"https://api.github.com/repos/{gen.ORG_NAME}/anac-fetcher/releases?per_page=100"
     for falha in (
         urllib.error.URLError("fora do ar"),
@@ -212,6 +213,124 @@ def test_consulta_com_json_invalido_eleva_erro(monkeypatch):
     _falsifica_urlopen(monkeypatch, {url: CorpoRuim([])})
     with pytest.raises(gen.ErroConsultaReleases):
         gen.fetch_releases("anac-fetcher")
+
+
+def _erro_http(url: str, codigo: int):
+    def levanta(req, timeout=None):
+        raise urllib.error.HTTPError(url, codigo, "erro", None, None)
+
+    return levanta
+
+
+def test_404_da_api_vira_aviso_e_pacote_pulado(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "public").mkdir()
+    monkeypatch.setattr(gen, "OUTROS_PACOTES", [])
+    monkeypatch.setattr(gen, "REGISTRO_TOML", tmp_path / "registro.toml")
+    (tmp_path / "registro.toml").write_text(REGISTRO_ANAC, encoding="utf-8")
+    url = f"https://api.github.com/repos/{gen.ORG_NAME}/anac-fetcher/releases?per_page=100"
+    monkeypatch.setattr(gen.urllib.request, "urlopen", _erro_http(url, 404))
+
+    gen.generate_index()  # 404 não aborta o build
+
+    saida = capsys.readouterr().out
+    assert "::warning::" in saida and "anac-fetcher" in saida and "404" in saida
+    # O pacote 404 não entra no índice; os demais artefatos saem normais.
+    assert not (tmp_path / "public" / "simple" / "anac-fetcher" / "index.html").exists()
+    assert (tmp_path / "public" / "simple" / "index.html").exists()
+    assert (tmp_path / "public" / "sources.json").exists()
+
+
+def test_erro_repositorio_ausente_e_filho_do_erro_de_consulta():
+    # Quem capturava o erro de consulta antes continua capturando o 404 depois.
+    assert issubclass(gen.ErroRepositorioAusente, gen.ErroConsultaReleases)
+
+
+def test_5xx_esgota_as_tentativas_e_aborta(monkeypatch):
+    monkeypatch.setattr(gen.time, "sleep", lambda s: None)
+    url = f"https://api.github.com/repos/{gen.ORG_NAME}/anac-fetcher/releases?per_page=100"
+    chamadas: list[str] = []
+
+    def sempre_500(req, timeout=None):
+        chamadas.append(req.full_url)
+        return _RespostaFalsa([], status=500)
+
+    monkeypatch.setattr(gen.urllib.request, "urlopen", sempre_500)
+    with pytest.raises(gen.ErroConsultaReleases, match="após 3 tentativas"):
+        gen.fetch_releases("anac-fetcher")
+    assert chamadas == [url] * gen.TENTATIVAS
+
+
+def test_5xx_passa_apos_a_nova_tentativa(monkeypatch):
+    monkeypatch.setattr(gen.time, "sleep", lambda s: None)
+    url = f"https://api.github.com/repos/{gen.ORG_NAME}/anac-fetcher/releases?per_page=100"
+    pagina = [{"tag_name": "v1"}]
+    respostas = iter(
+        [
+            urllib.error.HTTPError(url, 500, "Internal Server Error", None, None),
+            urllib.error.HTTPError(url, 502, "Bad Gateway", None, None),
+            _RespostaFalsa(pagina),
+        ]
+    )
+    chamadas: list[str] = []
+
+    def instavel(req, timeout=None):
+        chamadas.append(req.full_url)
+        resposta = next(respostas)
+        if isinstance(resposta, Exception):
+            raise resposta
+        return resposta
+
+    monkeypatch.setattr(gen.urllib.request, "urlopen", instavel)
+
+    assert gen.fetch_releases("anac-fetcher") == pagina
+    assert chamadas == [url] * 3
+
+
+def test_falha_de_rede_passa_apos_a_nova_tentativa(monkeypatch):
+    monkeypatch.setattr(gen.time, "sleep", lambda s: None)
+    pagina = [{"tag_name": "v1"}]
+    respostas = iter(
+        [
+            urllib.error.URLError("fora do ar"),
+            _RespostaFalsa(pagina),
+        ]
+    )
+
+    def instavel(req, timeout=None):
+        resposta = next(respostas)
+        if isinstance(resposta, Exception):
+            raise resposta
+        return resposta
+
+    monkeypatch.setattr(gen.urllib.request, "urlopen", instavel)
+
+    assert gen.fetch_releases("anac-fetcher") == pagina
+
+
+def test_401_aborta_ja_na_primeira_tentativa(monkeypatch):
+    url = f"https://api.github.com/repos/{gen.ORG_NAME}/anac-fetcher/releases?per_page=100"
+    chamadas: list[str] = []
+
+    def recusa(req, timeout=None):
+        chamadas.append(req.full_url)
+        raise urllib.error.HTTPError(url, 401, "Unauthorized", None, None)
+
+    monkeypatch.setattr(gen.urllib.request, "urlopen", recusa)
+    with pytest.raises(gen.ErroConsultaReleases, match="401"):
+        gen.fetch_releases("anac-fetcher", token="ghp_secreto123")
+    assert chamadas == [url]
+
+
+def test_token_nunca_aparece_no_log(monkeypatch, capsys):
+    monkeypatch.setattr(gen.time, "sleep", lambda s: None)
+    url = f"https://api.github.com/repos/{gen.ORG_NAME}/anac-fetcher/releases?per_page=100"
+    monkeypatch.setattr(gen.urllib.request, "urlopen", _erro_http(url, 401))
+    with pytest.raises(gen.ErroConsultaReleases) as excinfo:
+        gen.fetch_releases("anac-fetcher", token="ghp_secreto123")
+    capturado = capsys.readouterr()
+    tudo = str(excinfo.value) + capturado.out + capturado.err
+    assert "ghp_secreto123" not in tudo
 
 
 # --- Fragmente sha256 e data-requires-python nos links ------------------------
@@ -318,3 +437,40 @@ def test_requires_python_invalido_no_toml_e_ignorado_com_aviso(tmp_path, capsys)
     )
     assert registro.requires_python_por_distribuicao == {}
     assert "[anac].requires_python ignorado" in capsys.readouterr().out
+
+
+def test_requires_python_sem_operador_aborta_o_build(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "public").mkdir()
+    monkeypatch.setattr(gen, "OUTROS_PACOTES", [])
+    monkeypatch.setattr(gen, "REGISTRO_TOML", tmp_path / "registro.toml")
+    (tmp_path / "registro.toml").write_text(
+        REGISTRO_ANAC + 'requires_python = "3.12"\n', encoding="utf-8"
+    )
+    with pytest.raises(gen.ErroRegistroInvalido, match="requires_python"):
+        gen.generate_index()
+    # Nada é publicado: um data-requires-python inválido deixa o pacote
+    # ininstalável, e o build não pode sair com ele.
+    simple = tmp_path / "public" / "simple"
+    assert not (simple / "anac-fetcher" / "index.html").exists()
+    assert not (simple / "index.html").exists()
+    assert not (tmp_path / "public" / "sources.json").exists()
+
+
+def test_data_requires_python_so_nos_arquivos_da_release_mais_recente(gerador):
+    releases = [
+        _release("anac_fetcher-1.2.3.tar.gz"),
+        _release("anac_fetcher-1.2.2.tar.gz"),
+    ]
+    simple = gerador(REGISTRO_COM_PYTHON, releases)
+    html = (simple / "anac-fetcher" / "index.html").read_text()
+    linhas = [linha for linha in html.splitlines() if "<a href=" in linha]
+    assert any(
+        "anac_fetcher-1.2.3" in linha and 'data-requires-python="&gt;=3.12"' in linha
+        for linha in linhas
+    )
+    assert all(
+        "data-requires-python" not in linha
+        for linha in linhas
+        if "anac_fetcher-1.2.2" in linha
+    )

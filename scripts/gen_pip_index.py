@@ -8,12 +8,15 @@ links simples.
 
 from __future__ import annotations
 
+import functools
 import html
 import json
 import os
 import re
 import sys
+import time
 import tomllib
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,7 +69,8 @@ class Fetcher:
     # Obrigatório de Python (specifiers PEP 440) dos metadados do pacote, quando
     # conhecido: hoje declarado no `registro.toml` (e aceito do registro
     # publicado, para quando o export passar a trazê-lo do pyproject). O índice
-    # o põe em `data-requires-python` de cada link da distribuição atual.
+    # o põe em `data-requires-python` dos arquivos da release mais recente da
+    # distribuição atual (as antigas ficam como sempre foram instaláveis).
     requires_python: str | None = None
 
 
@@ -190,6 +194,52 @@ def _texto_opcional(fid: str, campo: str, bruto: object) -> str | None:
     return None
 
 
+class ErroRegistroInvalido(Exception):
+    """O `registro.toml` (ou o registro publicado) declara algo que o índice não aceita.
+
+    O build aborta: um `data-requires-python` sem specifiers PEP 440 válidos
+    (ex.: `"3.12"`, sem operador) deixa o pacote ininstalável pelo pip.
+    """
+
+
+@functools.cache
+def _ferramentas_specifier() -> tuple[type, type] | None:
+    """`(SpecifierSet, InvalidSpecifier)` do `packaging`, ou None sem ele.
+
+    O gerador roda em python puro (sem garantia do `packaging`); sem ele, a
+    conferência é pulada com aviso e a validação estrutural de tipo segue.
+    """
+    try:
+        from packaging.specifiers import InvalidSpecifier, SpecifierSet
+    except ImportError:
+        return None
+    return SpecifierSet, InvalidSpecifier
+
+
+def _confere_requires_python(fid: str, valor: str) -> None:
+    """Um `requires_python` tem que ser um `SpecifierSet` (PEP 440) válido.
+
+    Raises:
+        ErroRegistroInvalido: valor que o pip recusaria — o build aborta com a
+            mensagem do `packaging`.
+    """
+    ferramentas = _ferramentas_specifier()
+    if ferramentas is None:
+        print(
+            "::warning::packaging ausente: requires_python não foi conferido "
+            "contra os specifiers PEP 440."
+        )
+        return
+    SpecifierSet, InvalidSpecifier = ferramentas
+    try:
+        SpecifierSet(valor)
+    except InvalidSpecifier as exc:
+        raise ErroRegistroInvalido(
+            f"[{fid}] requires_python inválido ({valor!r}): {exc} — "
+            "declare specifiers PEP 440 (ex.: '>=3.12')"
+        ) from exc
+
+
 def carrega_registro(
     toml_path: Path | None = None, registry_path: Path | None = None
 ) -> Registro:
@@ -234,6 +284,8 @@ def carrega_registro(
             requires_python = _texto_opcional(
                 fid, "requires_python", pub.get("requires_python")
             )
+        if requires_python is not None:
+            _confere_requires_python(fid, requires_python)
         fetchers.append(
             Fetcher(
                 id=fid,
@@ -263,6 +315,23 @@ class ErroConsultaReleases(Exception):
     """
 
 
+class ErroRepositorioAusente(ErroConsultaReleases):
+    """O repositório responde 404: não há releases dele para nós.
+
+    Tratado como aviso pelo gerador (o pacote sai do índice), não como aborto:
+    repositório renomeado, arquivado ou temporariamente sem acesso público
+    não justifica derrubar o índice dos demais.
+    """
+
+
+class _Falha5xx(Exception):
+    """Status 5xx devolvido em resposta sem HTTPError: sinaliza nova tentativa."""
+
+
+# Consulta à API: 1 tentativa + até 2 novas tentativas para 5xx e falha de rede.
+TENTATIVAS = 3
+ESPERA_SEGUNDOS = 1.0
+
 _LINK_PROXIMA = re.compile(r'<(?P<url>[^>]*)>;\s*rel=?"?next"?')
 
 
@@ -284,8 +353,12 @@ def fetch_releases(repo: str, token: str | None = None) -> list[dict]:
     (`rel="next"`) até a última.
 
     Raises:
-        ErroConsultaReleases: resposta fora do 200, JSON inválido ou falha de
-            rede — o índice não se monta com dados incompletos.
+        ErroRepositorioAusente: HTTP 404 — quem chama decide (o gerador avisa
+            e pula o pacote).
+        ErroConsultaReleases: HTTP 5xx ou falha de rede depois de 3 tentativas
+            (com espera curta entre elas), HTTP 401/403 (credencial recusada)
+            ou JSON inválido/inesperado — o índice não se monta com dados
+            incompletos. O token nunca entra na mensagem.
     """
     url = f"https://api.github.com/repos/{ORG_NAME}/{repo}/releases?per_page=100"
     headers = {"User-Agent": "quantilica-index-builder"}
@@ -296,26 +369,60 @@ def fetch_releases(repo: str, token: str | None = None) -> list[dict]:
     visitadas: set[str] = set()
     while url and url not in visitadas:
         visitadas.add(url)
+        status, corpo, proxima = _pagina_da_api(repo, url, headers)
+        if status != 200:
+            raise ErroConsultaReleases(f"{repo}: HTTP {status} em {url}")
         try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                status = resp.status
-                proxima = _proxima_pagina(resp.headers.get("Link"))
-                corpo = resp.read()
-            if status != 200:
-                raise ErroConsultaReleases(f"{repo}: HTTP {status} em {url}")
             pagina = json.loads(corpo.decode("utf-8"))
-        except ErroConsultaReleases:
-            raise
-        except Exception as exc:
-            raise ErroConsultaReleases(
-                f"{repo}: falha ao consultar {url}: {exc}"
-            ) from exc
+        except ValueError as exc:
+            raise ErroConsultaReleases(f"{repo}: JSON inválido em {url}") from exc
         if not isinstance(pagina, list):
             raise ErroConsultaReleases(f"{repo}: resposta inesperada da API em {url}")
         releases.extend(pagina)
         url = proxima
     return releases
+
+
+def _pagina_da_api(
+    repo: str, url: str, headers: dict[str, str]
+) -> tuple[int, bytes, str | None]:
+    """Uma página da API: `(status, corpo, próxima URL do Link)`.
+
+    5xx (do HTTPError e do próprio status) e falha de rede ganham até 2 novas
+    tentativas com espera curta. 404 vira `ErroRepositorioAusente` e 401/403
+    abortam na primeira tentativa. A mensagem nunca traz o token: só o que a
+    URL e o repositório já dizem.
+    """
+    ultimo: Exception | None = None
+    for tentativa in range(TENTATIVAS):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.status
+                if status >= 500:
+                    # Cai no fluxo de nova tentativa (o urlopen normalmente já
+                    # levanta HTTPError para 5xx; servidores intermediários
+                    # podem devolver o status sem levantar).
+                    raise _Falha5xx(f"{status}")
+                return status, resp.read(), _proxima_pagina(resp.headers.get("Link"))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                raise ErroRepositorioAusente(f"{repo}: HTTP 404 em {url}") from exc
+            if exc.code in (401, 403):
+                raise ErroConsultaReleases(
+                    f"{repo}: HTTP {exc.code} em {url} — credencial recusada "
+                    "(confira o GITHUB_TOKEN; o valor dele não vai no log)"
+                ) from exc
+            ultimo = exc
+        except _Falha5xx as exc:
+            ultimo = exc
+        except OSError as exc:  # URLError, timeout de socket, DNS...
+            ultimo = exc
+        if tentativa + 1 < TENTATIVAS:
+            time.sleep(ESPERA_SEGUNDOS)
+    raise ErroConsultaReleases(
+        f"{repo}: falha ao consultar {url} após {TENTATIVAS} tentativas: {ultimo}"
+    ) from ultimo
 
 
 def fragmento_sha256(digest: str | None) -> str:
@@ -348,16 +455,27 @@ def generate_index(registro: Registro | None = None) -> None:
     for repo in registro.pacotes:
         pkg_name = repo.lower()
         releases: list[dict] = []
+        ausentes: list[str] = []
         for candidato in repos_do_pacote.get(pkg_name, [repo]):
-            releases = fetch_releases(candidato, token)
+            try:
+                releases = fetch_releases(candidato, token)
+            except ErroRepositorioAusente:
+                ausentes.append(candidato)
+                continue
             if releases:
                 break
         if not releases:
+            if ausentes:
+                repos_txt = ", ".join(f"{ORG_NAME}/{c}" for c in ausentes)
+                print(
+                    f"::warning::{pkg_name}: repositório sem releases para nós "
+                    f"(HTTP 404: {repos_txt}); pacote pulado."
+                )
             continue
 
         links: list[str] = []
         reqpy = requires_python.get(pkg_name)
-        for release in releases:
+        for pos, release in enumerate(releases):
             for asset in release.get("assets", []):
                 name = asset.get("name", "")
                 download_url = asset.get("browser_download_url", "")
@@ -369,8 +487,15 @@ def generate_index(registro: Registro | None = None) -> None:
                 )
                 if is_pkg and asset_do_pacote(pkg_name, name, prefixos):
                     sha = fragmento_sha256(asset.get("digest"))
+                    # O `requires_python` vale para os metadados da versão
+                    # vigente: só os arquivos da release mais recente (a API
+                    # devolve as releases da mais nova para a mais antiga)
+                    # levam o atributo; as releases antigas ficam como sempre
+                    # foram instaláveis.
                     attr = (
-                        f' data-requires-python="{html.escape(reqpy)}"' if reqpy else ""
+                        f' data-requires-python="{html.escape(reqpy)}"'
+                        if reqpy and pos == 0
+                        else ""
                     )
                     links.append(
                         f'    <a href="{download_url}{sha}"{attr}>{name}</a><br/>'
@@ -433,6 +558,6 @@ def generate_index(registro: Registro | None = None) -> None:
 if __name__ == "__main__":
     try:
         generate_index()
-    except ErroConsultaReleases as exc:
+    except (ErroConsultaReleases, ErroRegistroInvalido) as exc:
         print(f"::error::build abortado: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

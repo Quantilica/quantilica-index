@@ -45,6 +45,22 @@ def test_toml_invalido_e_arquivo_ausente(tmp_path):
     assert vr.main([str(ruim)]) == 1
 
 
+def test_requires_python_valido_passa():
+    assert erros('[a]\ndocs_pasta = "x"\nrequires_python = ">=3.12"\n') == []
+    assert erros('[a]\ndocs_pasta = "x"\nrequires_python = ">=3.12,<4.0"\n') == []
+
+
+def test_requires_python_sem_operador_e_reprovado():
+    achados = erros('[a]\ndocs_pasta = "x"\nrequires_python = "3.12"\n')
+    assert len(achados) == 1
+    assert "[a] requires_python inválido ('3.12')" in achados[0]
+
+
+def test_requires_python_tipo_errado_e_reprovado():
+    achados = erros('[a]\ndocs_pasta = "x"\nrequires_python = 3.12\n')
+    assert "[a] requires_python deve ser texto (specifiers PEP 440)" in achados
+
+
 def test_gerador_pula_historico_malformado_sem_cair(tmp_path, capsys):
     p = tmp_path / "r.toml"
     p.write_text(
