@@ -3,8 +3,11 @@
 A referência é uma geração com releases determinísticas feita pelo gerador de
 14/11 (listas escritas à mão em `gen_pip_index.py`), guardada em
 `fixtures/referencia_2026_11_14/esperado.json`, junto com o registro publicado
-naquela data. Rodar o gerador novo sobre o `registro.toml` atual e o mesmo
-registro tem de reproduzir cada arquivo.
+naquela data, e o `registro.toml` de então (`fixtures/referencia_2026_11_14/
+registro.toml`, uma cópia congelada). Rodar o gerador novo sobre essa cópia e o mesmo
+registro tem de reproduzir cada arquivo. A cópia é congelada de propósito: o
+`registro.toml` vivo muda a cada renome ou fetcher novo, e esta paridade não pode
+depender dele.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ import releases_falsas
 
 RAIZ = Path(__file__).resolve().parents[1]
 FIXTURES = RAIZ / "tests" / "fixtures" / "referencia_2026_11_14"
+REGISTRO_TOML_14_11 = FIXTURES / "registro.toml"
 
 
 # As listas que o gerador de 14/11 trazia escritas à mão.
@@ -46,7 +50,7 @@ def registro(request, tmp_path):
     publicado = tmp_path / "registry.json"
     if request.param == "registro_publicado":
         shutil.copy(FIXTURES / "registry.json", publicado)
-    return gen.carrega_registro(RAIZ / "registro.toml", publicado)
+    return gen.carrega_registro(REGISTRO_TOML_14_11, publicado)
 
 
 def test_listas_derivadas_iguais_as_escritas_a_mao(registro):
@@ -61,9 +65,9 @@ def test_apelidos_de_fonte_so_dos_renomeados(tmp_path):
     # anterior do `historico` basta para o `sidra`.
     publicado = tmp_path / "registry.json"
     shutil.copy(FIXTURES / "registry.json", publicado)
-    com = gen.carrega_registro(RAIZ / "registro.toml", publicado)
+    com = gen.carrega_registro(REGISTRO_TOML_14_11, publicado)
     assert com.apelidos_de_fonte == APELIDOS_14_11
-    sem = gen.carrega_registro(RAIZ / "registro.toml", tmp_path / "nao-existe.json")
+    sem = gen.carrega_registro(REGISTRO_TOML_14_11, tmp_path / "nao-existe.json")
     assert sem.apelidos_de_fonte == {"sidra": "ibge-sidra-fetcher"}
 
 
@@ -72,7 +76,9 @@ def test_geracao_de_referencia_identica(tmp_path, monkeypatch):
     (tmp_path / "public").mkdir()
     shutil.copy(FIXTURES / "registry.json", tmp_path / "public" / "registry.json")
     monkeypatch.setattr(gen, "fetch_releases", releases_falsas.releases_do_repo)
-    gen.generate_index()
+    gen.generate_index(
+        gen.carrega_registro(REGISTRO_TOML_14_11, tmp_path / "public" / "registry.json")
+    )
 
     esperado = json.loads((FIXTURES / "esperado.json").read_text(encoding="utf-8"))
     gerado = {

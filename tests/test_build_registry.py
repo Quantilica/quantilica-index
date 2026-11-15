@@ -8,6 +8,7 @@ import os
 import stat
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import build_registry as br
@@ -49,16 +50,36 @@ def test_sha256_ignora_a_propria_chave_e_depende_do_conteudo():
 # --- registro.toml x export ------------------------------------------------
 
 
-def test_ids_do_registro_toml_iguais_aos_do_registro_de_14_11():
-    """Os ids declarados são os do registro publicado em 14/11, nos dois sentidos."""
+def _ids_publicados_14_11() -> set[str]:
     v1 = json.loads(
         (FIXTURES / "referencia_2026_11_14" / "registry.json").read_text("utf-8")
     )
-    publicados = {f["id"] for f in v1["fetchers"]}
-    declarados = set(br.ids_do_registro(REGISTRO_TOML))
+    return {f["id"] for f in v1["fetchers"]}
+
+
+def test_retrato_de_14_11_fecha_com_o_registro_toml_de_14_11():
+    """O retrato congelado e o `registro.toml` de então têm os mesmos 25 ids."""
+    declarados = set(
+        br.ids_do_registro(FIXTURES / "referencia_2026_11_14" / "registro.toml")
+    )
+    publicados = _ids_publicados_14_11()
     assert declarados - publicados == set(), "no registro.toml e fora do registro"
     assert publicados - declarados == set(), "no registro e fora do registro.toml"
     assert len(declarados) == 25
+
+
+def test_registro_toml_vivo_nao_perde_id_de_14_11():
+    """Fetcher novo e renome não quebram o teste; sumir um id de 14/11 quebra.
+
+    Cada id do retrato de 14/11 continua no `registro.toml` vivo, direto ou como
+    id anterior de alguma seção (`historico`).
+    """
+    vivo = tomllib.loads(REGISTRO_TOML.read_text("utf-8"))
+    conhecidos = set(vivo)
+    for secao in vivo.values():
+        for h in secao.get("historico", []):
+            conhecidos.add(h["id"])
+    assert _ids_publicados_14_11() - conhecidos == set()
 
 
 def test_registro_toml_valido_para_o_core():
