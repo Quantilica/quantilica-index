@@ -10,7 +10,7 @@
 #   vitrine        tem cartão no site
 #   ci_integracao  entra no CI de integração do core
 #   json_leve      série JSON leve da auditoria (isenta de lake Hive)
-#   mascote        nome do mascote do painel dos workers (arquivo sem extensão)
+#   mascote        id da fonte dona da imagem do mascote (arquivo sem extensão em static/mascotes/ do painel dos workers)
 #   health_url     sonda do `quantilica health`
 #   historico      nomes anteriores (renomes): distribution, repo, id e data
 #
@@ -46,14 +46,14 @@ docs_pasta = "bcb"
 vitrine = false
 ci_integracao = false
 json_leve = false
-mascote = "hedgehog"
+mascote = "bcb-sgs"
 
 [bcb-sgs]
 docs_pasta = "bcb"
 vitrine = true
 ci_integracao = true
 json_leve = true
-mascote = "hedgehog"
+mascote = "bcb-sgs"
 health_url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados?formato=json"
 
 [capes]
@@ -80,14 +80,14 @@ docs_pasta = "saude"
 vitrine = true
 ci_integracao = true
 json_leve = false
-mascote = "alpaca"
+mascote = "datasus"
 
 [ibge-sidra]
 docs_pasta = "ibge"
 vitrine = true
 ci_integracao = true
 json_leve = true
-mascote = "fish"
+mascote = "ibge-sidra"
 health_url = "https://servicodados.ibge.gov.br/api/v3/calendario"
 
 [[ibge-sidra.historico]]
@@ -156,21 +156,21 @@ docs_pasta = "tesouro"
 vitrine = true
 ci_integracao = true
 json_leve = false
-mascote = "flamingo"
+mascote = "rtn"
 
 [sigtap]
 docs_pasta = "saude"
 vitrine = false
 ci_integracao = false
 json_leve = false
-mascote = "alpaca"
+mascote = "datasus"
 
 [tesouro-direto]
 docs_pasta = "tesouro"
 vitrine = true
 ci_integracao = true
 json_leve = false
-mascote = "sloth"
+mascote = "tesouro-direto"
 health_url = "https://www.tesourotransparente.gov.br/ckan/api/3/action/package_search?rows=1"
 
 [transparencia-sp]
