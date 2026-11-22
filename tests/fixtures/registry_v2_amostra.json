@@ -64,7 +64,7 @@
       "vitrine": true,
       "ci_integracao": true,
       "json_leve": true,
-      "mascote": "fish",
+      "mascote": "ibge-sidra",
       "health_url": "https://servicodados.ibge.gov.br/api/v3/calendario",
       "historico": [
         {
@@ -82,5 +82,5 @@
       "error": null
     }
   ],
-  "sha256": "767ce18892bdd68c41f391e42d48fe9bcc376ef9c9e072eb092bd149474437cf"
+  "sha256": "72de09234add0e1dc06ade07d97f1cc406db4680080bda09177671c0730e4459"
 }

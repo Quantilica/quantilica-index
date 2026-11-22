@@ -10,7 +10,7 @@
 #   vitrine        tem cartão no site
 #   ci_integracao  entra no CI de integração do core
 #   json_leve      série JSON leve da auditoria (isenta de lake Hive)
-#   mascote        id da fonte dona da imagem do mascote (arquivo sem extensão em static/mascotes/ do painel dos workers)
+#   mascote        id da fonte dona da imagem do mascote
 #   health_url     sonda do `quantilica health`
 #   historico      nomes anteriores (renomes): distribution, repo, id e data
 #
